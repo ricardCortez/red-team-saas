@@ -1,0 +1,63 @@
+"""Main FastAPI application"""
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import logging
+
+from app.core.config import settings
+from app.database import init_db
+from app.logging_config import logger
+from app.api.v1 import auth
+# Import all models so SQLAlchemy creates their tables
+import app.models  # noqa: F401
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan"""
+    logger.info(f"Starting {settings.PROJECT_NAME} v{settings.PROJECT_VERSION}")
+    init_db()
+    logger.info("Database initialized")
+
+    yield
+
+    logger.info(f"Shutting down {settings.PROJECT_NAME}")
+
+
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    version=settings.PROJECT_VERSION,
+    debug=settings.DEBUG,
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=settings.ALLOW_CREDENTIALS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {
+        "name": settings.PROJECT_NAME,
+        "version": settings.PROJECT_VERSION,
+        "status": "ok",
+    }
+
+
+@app.get("/health")
+async def health():
+    """Health check"""
+    return {"status": "healthy"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
