@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.core.config import settings
+from app.core.executor_types import TOOLS_BY_OPTION
 from app.database import init_db
 from app.logging_config import logger
-from app.api.v1 import auth
+from app.api.v1 import auth, tools
 # Import all models so SQLAlchemy creates their tables
 import app.models  # noqa: F401
 
@@ -40,6 +41,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
+app.include_router(tools.router, prefix=settings.API_V1_STR, tags=["tools"])
 
 
 @app.get("/")
@@ -49,6 +51,8 @@ async def root():
         "name": settings.PROJECT_NAME,
         "version": settings.PROJECT_VERSION,
         "status": "ok",
+        "architecture": settings.ARCHITECTURE_OPTION,
+        "total_tools": TOOLS_BY_OPTION[settings.ARCHITECTURE_OPTION].get("total", 0),
     }
 
 

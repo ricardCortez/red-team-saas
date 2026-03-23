@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/app.log"
 
+    # Architecture Option (A, B, C)
+    ARCHITECTURE_OPTION: str = "C"
+
+    # Tool Executor
+    TOOL_EXECUTION_TIMEOUT: int = 300   # 5 minutos por herramienta
+    DOCKER_SANDBOX_ENABLED: bool = False
+    PLUGIN_MARKETPLACE_ENABLED: bool = False
+    ENABLE_API_GATEWAY: bool = False
+    NUM_API_INTEGRATIONS: int = 0
+
     class Config:
         env_file = ".env"
         case_sensitive = True
