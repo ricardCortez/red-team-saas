@@ -128,3 +128,39 @@ def refresh_token_value(client, test_user_data, registered_user):
     )
     assert resp.status_code == 200, resp.text
     return resp.json()["refresh_token"]
+
+
+# ── Phase 4: Celery + subprocess fixtures ─────────────────────────────────────
+
+@pytest.fixture
+def celery_eager():
+    """Run Celery tasks synchronously in-process (no broker required)."""
+    from app.tasks.celery_app import celery_app
+    celery_app.conf.task_always_eager = True
+    celery_app.conf.task_eager_propagates = True
+    yield
+    celery_app.conf.task_always_eager = False
+    celery_app.conf.task_eager_propagates = False
+
+
+@pytest.fixture
+def mock_subprocess(mocker):
+    """Mock subprocess.Popen so no real binaries are called."""
+    from unittest.mock import MagicMock
+    mock_popen = mocker.patch("app.core.tool_engine.executor.subprocess.Popen")
+    mock_process = MagicMock()
+    mock_process.stdout.__iter__ = lambda s: iter(["line1\n", "line2\n"])
+    mock_process.stdout.readline = MagicMock(side_effect=["line1\n", "line2\n", ""])
+    mock_process.returncode = 0
+    mock_process.pid = 12345
+    mock_popen.return_value = mock_process
+    return mock_popen
+
+
+@pytest.fixture
+def mock_redis(mocker):
+    """Mock Redis pub/sub to avoid real connections in tests."""
+    from unittest.mock import MagicMock
+    mock = MagicMock()
+    mocker.patch("app.core.redis_client.redis_client", mock)
+    return mock

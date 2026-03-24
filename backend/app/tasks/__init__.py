@@ -1,1 +1,1 @@
-"""Celery tasks package"""
+"""Tasks package"""

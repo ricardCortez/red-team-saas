@@ -24,6 +24,7 @@ class TaskStatus:
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    RETRYING = "retrying"
 
 
 VALID_TASK_STATUSES = [
@@ -32,6 +33,7 @@ VALID_TASK_STATUSES = [
     TaskStatus.COMPLETED,
     TaskStatus.FAILED,
     TaskStatus.CANCELLED,
+    TaskStatus.RETRYING,
 ]
 
 
