@@ -9,6 +9,7 @@ celery_app = Celery(
     include=[
         "app.tasks.tool_executor",
         "app.tasks.cleanup_tasks",
+        "app.tasks.report_tasks",
     ],
 )
 

@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import projects, scans, results, reports, tools as tool_endpoints
 from app.api.v1.endpoints import executions
+from app.api.v1.endpoints import findings, exec_results
 
 api_router = APIRouter()
 
@@ -11,3 +12,6 @@ api_router.include_router(results.router, prefix="/results", tags=["Results"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(tool_endpoints.router, prefix="/tools", tags=["Tool Configs"])
 api_router.include_router(executions.router, prefix="/executions", tags=["Executions"])
+# Phase 5
+api_router.include_router(findings.router, prefix="/findings", tags=["Findings"])
+api_router.include_router(exec_results.router, prefix="/exec-results", tags=["Exec Results"])

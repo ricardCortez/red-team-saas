@@ -21,7 +21,6 @@ class Workspace(Base, BaseModel):
 
     owner = relationship("User")
     tasks = relationship("Task", back_populates="workspace", cascade="all, delete-orphan")
-    reports = relationship("Report", back_populates="workspace", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Workspace(id={self.id}, name={self.name}, client={self.client_name})>"

@@ -83,6 +83,15 @@ def execute_tool(
         )
         task_obj.error_message = result.error
         db.commit()
+        db.refresh(result_obj)
+
+        # Phase 5: extract findings from JSON to individual Finding rows
+        if result.findings:
+            try:
+                from app.core.findings_processor import process_result_findings
+                process_result_findings(db, result_obj)
+            except Exception as fp_exc:
+                logger.warning("findings_processor failed for result %s: %s", result_obj.id, fp_exc)
 
         create_audit_log(
             db=db,

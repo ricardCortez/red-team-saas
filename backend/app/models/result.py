@@ -30,6 +30,7 @@ class Result(Base, BaseModel):
     error_message = Column(Text, nullable=True)
 
     task = relationship("Task", back_populates="results")
+    findings_rel = relationship("Finding", back_populates="result", foreign_keys="Finding.result_id")
 
     def __repr__(self):
         return f"<Result(id={self.id}, task_id={self.task_id}, tool={self.tool_name or self.tool})>"

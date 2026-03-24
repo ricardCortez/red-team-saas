@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report.title }} - Compliance Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #222; margin: 40px; }
+    h1 { color: #1a237e; }
+    h2 { color: #283593; border-bottom: 1px solid #c5cae9; padding-bottom: 6px; }
+    .classification { background: #1a237e; color: white; padding: 3px 10px; font-size: 11px; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th { background: #283593; color: white; padding: 8px 12px; }
+    td { padding: 8px 12px; border-bottom: 1px solid #e8eaf6; }
+    .pass { color: #27ae60; font-weight: bold; }
+    .fail { color: #c0392b; font-weight: bold; }
+    .badge-critical { color: #c0392b; font-weight: bold; }
+    .badge-high     { color: #e67e22; font-weight: bold; }
+    .badge-medium   { color: #f39c12; }
+    .badge-low      { color: #27ae60; }
+  </style>
+</head>
+<body>
+  <div class="classification">{{ report.classification.value }}</div>
+  <h1>{{ report.title }} &mdash; Compliance Report</h1>
+
+  <h2>Compliance Summary</h2>
+  <table>
+    <tr><th>Control</th><th>Status</th><th>Findings</th></tr>
+    <tr>
+      <td>No Critical Open Findings</td>
+      <td class="{{ 'pass' if stats.critical == 0 else 'fail' }}">
+        {{ 'PASS' if stats.critical == 0 else 'FAIL' }}
+      </td>
+      <td>{{ stats.critical }} critical</td>
+    </tr>
+    <tr>
+      <td>No High Open Findings</td>
+      <td class="{{ 'pass' if stats.high == 0 else 'fail' }}">
+        {{ 'PASS' if stats.high == 0 else 'FAIL' }}
+      </td>
+      <td>{{ stats.high }} high</td>
+    </tr>
+    <tr>
+      <td>Risk Score &le; 7.0</td>
+      <td class="{{ 'pass' if stats.overall_risk <= 7.0 else 'fail' }}">
+        {{ 'PASS' if stats.overall_risk <= 7.0 else 'FAIL' }}
+      </td>
+      <td>Score: {{ stats.overall_risk }}</td>
+    </tr>
+  </table>
+
+  <h2>Critical &amp; High Findings</h2>
+  <table>
+    <tr><th>Severity</th><th>Title</th><th>Host</th><th>Status</th></tr>
+    {% for f in findings %}
+    {% if f.severity in ['critical', 'high'] %}
+    <tr>
+      <td class="badge-{{ f.severity }}">{{ f.severity | upper }}</td>
+      <td>{{ f.title }}</td>
+      <td>{{ f.host or '-' }}</td>
+      <td>{{ f.status }}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+
+  {% if report.recommendations %}
+  <h2>Remediation Recommendations</h2>
+  <p>{{ report.recommendations }}</p>
+  {% endif %}
+</body>
+</html>

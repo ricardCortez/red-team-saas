@@ -1,4 +1,4 @@
-"""Result (Finding) schemas"""
+"""Result (Finding) schemas - Phase 3 + Phase 5"""
 import json
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
@@ -93,3 +93,51 @@ class ResultSummary(BaseModel):
     total: int = 0
     verified: int = 0
     false_positives: int = 0
+
+
+# ── Phase 5: Execution Result schemas (for Result model, not Finding) ──────────
+
+class ResultFilter(BaseModel):
+    tool_name: Optional[str] = None
+    target: Optional[str] = None
+    project_id: Optional[int] = None
+    min_risk_score: Optional[float] = None
+    success: Optional[bool] = None
+    date_from: Optional[datetime] = None
+    date_to: Optional[datetime] = None
+
+
+class ExecutionResultResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    task_id: int
+    tool_name: Optional[str] = None
+    target: Optional[str] = None
+    success: bool = False
+    risk_score: float = 0.0
+    exit_code: int = 0
+    duration_seconds: float = 0.0
+    parsed_output: Optional[Dict[str, Any]] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    @property
+    def findings_count(self) -> int:
+        return 0  # Populated by endpoint from findings_rel
+
+
+class ExecutionResultListResponse(BaseModel):
+    items: List[ExecutionResultResponse]
+    total: int
+    skip: int
+    limit: int
+
+
+class ProjectSummary(BaseModel):
+    total_scans: int = 0
+    successful: int = 0
+    failed: int = 0
+    avg_risk_score: float = 0.0
+    tools_used: List[str] = []

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ report.title }} - Technical Report</title>
+  <style>
+    body { font-family: 'Courier New', monospace; color: #222; margin: 40px; font-size: 13px; }
+    h1 { color: #c0392b; }
+    h2 { color: #2c3e50; border-left: 4px solid #c0392b; padding-left: 10px; }
+    .classification { background: #c0392b; color: white; padding: 3px 10px; font-size: 11px; text-transform: uppercase; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12px; }
+    th { background: #2c3e50; color: white; padding: 6px 10px; text-align: left; }
+    td { padding: 6px 10px; border-bottom: 1px solid #ddd; word-break: break-word; }
+    .badge-critical { color: #c0392b; font-weight: bold; }
+    .badge-high     { color: #e67e22; font-weight: bold; }
+    .badge-medium   { color: #f39c12; }
+    .badge-low      { color: #27ae60; }
+    .badge-info     { color: #2980b9; }
+    .section { margin: 30px 0; }
+  </style>
+</head>
+<body>
+  <div class="classification">{{ report.classification.value }}</div>
+  <h1>{{ report.title }} &mdash; Technical Report</h1>
+  <p>Project: {{ report.project_id }} | Tools: {{ tools | join(', ') }} | Hosts: {{ hosts | length }}</p>
+
+  <div class="section">
+    <h2>Findings Summary</h2>
+    <table>
+      <tr><th>Severity</th><th>Count</th></tr>
+      <tr><td class="badge-critical">CRITICAL</td><td>{{ stats.critical }}</td></tr>
+      <tr><td class="badge-high">HIGH</td><td>{{ stats.high }}</td></tr>
+      <tr><td class="badge-medium">MEDIUM</td><td>{{ stats.medium }}</td></tr>
+      <tr><td class="badge-low">LOW</td><td>{{ stats.low }}</td></tr>
+      <tr><td class="badge-info">INFO</td><td>{{ stats.info }}</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>All Findings ({{ stats.total }})</h2>
+    <table>
+      <tr><th>ID</th><th>Severity</th><th>Title</th><th>Host</th><th>Port</th><th>Service</th><th>Tool</th><th>Risk</th></tr>
+      {% for f in findings %}
+      <tr>
+        <td>{{ f.id }}</td>
+        <td class="badge-{{ f.severity }}">{{ f.severity | upper }}</td>
+        <td>{{ f.title }}</td>
+        <td>{{ f.host or '-' }}</td>
+        <td>{{ f.port or '-' }}</td>
+        <td>{{ f.service or '-' }}</td>
+        <td>{{ f.tool or '-' }}</td>
+        <td>{{ f.risk_score }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Hosts Affected</h2>
+    <ul>{% for h in hosts %}<li>{{ h }}</li>{% endfor %}</ul>
+  </div>
+</body>
+</html>

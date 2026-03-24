@@ -1,54 +1,50 @@
-"""Report schemas"""
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+"""Report schemas - Phase 6"""
+from pydantic import BaseModel, field_validator, ConfigDict
+from typing import Optional
 from datetime import datetime
-from enum import Enum
+from app.models.report import ReportType, ReportFormat, ReportStatus, ReportClassification
 
 
-class ReportStatus(str, Enum):
-    draft = "draft"
-    review = "review"
-    final = "final"
-    archived = "archived"
-
-
-class ReportBase(BaseModel):
-    title: str = Field(..., min_length=3, max_length=500)
+class ReportCreate(BaseModel):
+    project_id: int
+    title: str
+    report_type: ReportType
+    report_format: Optional[ReportFormat] = ReportFormat.pdf
+    classification: Optional[ReportClassification] = ReportClassification.confidential
+    scope_description: Optional[str] = None
     executive_summary: Optional[str] = None
-    findings: Optional[str] = None      # JSON string of findings list
     recommendations: Optional[str] = None
-    workspace_id: Optional[int] = None
+
+    @field_validator("title")
+    @classmethod
+    def title_not_empty(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Title cannot be empty")
+        return v.strip()
 
 
-class ReportCreate(ReportBase):
-    pass
-
-
-class ReportUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=3, max_length=500)
-    executive_summary: Optional[str] = None
-    findings: Optional[str] = None
-    recommendations: Optional[str] = None
-    status: Optional[ReportStatus] = None
-
-
-class ReportInDB(ReportBase):
+class ReportResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     id: int
-    author_id: int
+    project_id: int
+    created_by: int
+    title: str
+    report_type: ReportType
+    report_format: ReportFormat
     status: ReportStatus
-    signature_hash: Optional[str] = None
-    signed_at: Optional[datetime] = None
+    classification: ReportClassification
+    scope_description: Optional[str] = None
+    executive_summary: Optional[str] = None
+    recommendations: Optional[str] = None
+    total_findings: int
+    critical_count: int
+    high_count: int
+    medium_count: int
+    low_count: int
+    overall_risk: float
+    file_size_bytes: Optional[int] = None
+    celery_task_id: Optional[str] = None
+    error_message: Optional[str] = None
     created_at: datetime
-    updated_at: datetime
-
-
-class ReportResponse(ReportInDB):
-    pass
-
-
-class ReportListResponse(BaseModel):
-    items: List[ReportResponse]
-    total: int
-    skip: int
-    limit: int
+    generated_at: Optional[datetime] = None

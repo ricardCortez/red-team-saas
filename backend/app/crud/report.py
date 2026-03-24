@@ -1,46 +1,40 @@
-"""CRUD for Report"""
-from typing import Dict, Optional
+"""CRUD for Report - Phase 6"""
+from typing import Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from app.crud.base import CRUDBase
 from app.models.report import Report, ReportStatus
-from app.schemas.report import ReportCreate, ReportUpdate
 
 
-class CRUDReport(CRUDBase[Report, ReportCreate, ReportUpdate]):
+class CRUDReport:
+
+    def get(self, db: Session, report_id: int) -> Optional[Report]:
+        return db.query(Report).filter(Report.id == report_id).first()
 
     def get_multi(
         self,
         db: Session,
         *,
+        user_id: int,
+        is_superuser: bool = False,
+        project_id: Optional[int] = None,
+        status: Optional[ReportStatus] = None,
         skip: int = 0,
         limit: int = 20,
-        filters: Dict = None,
-    ) -> Dict:
-        query = db.query(Report)
+    ) -> dict:
+        q = db.query(Report)
+        if not is_superuser:
+            q = q.filter(Report.created_by == user_id)
+        if project_id is not None:
+            q = q.filter(Report.project_id == project_id)
+        if status is not None:
+            q = q.filter(Report.status == status)
+        total = q.with_entities(func.count()).scalar()
+        items = q.order_by(Report.created_at.desc()).offset(skip).limit(limit).all()
+        return {"total": total, "items": items, "skip": skip, "limit": limit}
 
-        if filters:
-            if filters.get("author_id") is not None:
-                query = query.filter(Report.author_id == filters["author_id"])
-            if filters.get("workspace_id") is not None:
-                query = query.filter(Report.workspace_id == filters["workspace_id"])
-            if filters.get("status"):
-                query = query.filter(Report.status == filters["status"])
-
-        total = query.with_entities(func.count()).scalar()
-        items = query.order_by(Report.created_at.desc()).offset(skip).limit(limit).all()
-        return {"items": items, "total": total, "skip": skip, "limit": limit}
-
-    def finalize(self, db: Session, *, db_obj: Report) -> Report:
-        """Compute and store digital signature, set status to final"""
-        from datetime import datetime, timezone
-        db_obj.signature_hash = db_obj.compute_signature()
-        db_obj.signed_at = datetime.now(timezone.utc)
-        db_obj.status = ReportStatus.final
-        db.add(db_obj)
+    def delete(self, db: Session, *, report: Report) -> None:
+        db.delete(report)
         db.commit()
-        db.refresh(db_obj)
-        return db_obj
 
 
-crud_report = CRUDReport(Report)
+crud_report = CRUDReport()
