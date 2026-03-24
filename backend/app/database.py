@@ -33,3 +33,15 @@ def init_db():
     """Initialize database"""
     Base.metadata.create_all(bind=engine)
     logger.info("Database initialized")
+
+
+def health_check() -> bool:
+    """Return True if a DB connection can be established and a basic query runs."""
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception as exc:
+        logger.error(f"health_check failed: {exc}")
+        return False

@@ -9,6 +9,7 @@ from app.core.executor_types import TOOLS_BY_OPTION
 from app.database import init_db
 from app.logging_config import logger
 from app.api.v1 import auth, tools
+from app.api.v1.router import api_router
 # Import all models so SQLAlchemy creates their tables
 import app.models  # noqa: F401
 
@@ -42,6 +43,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
 app.include_router(tools.router, prefix=settings.API_V1_STR, tags=["tools"])
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/")

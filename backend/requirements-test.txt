@@ -1,0 +1,6 @@
+-r requirements.txt
+# bcrypt 5.x breaks passlib 1.7.4 – pin to match production
+bcrypt==4.1.2
+pytest>=7.4.0
+pytest-cov>=4.1.0
+httpx>=0.25.0

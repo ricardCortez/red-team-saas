@@ -4,6 +4,8 @@ from typing import Optional
 import jwt
 from passlib.context import CryptContext
 from cryptography.fernet import Fernet
+from sqlalchemy import String
+from sqlalchemy.types import TypeDecorator
 from app.core.config import settings
 
 # Password hashing
@@ -86,3 +88,38 @@ class EncryptionHandler:
             return cipher.decrypt(encrypted_data.encode()).decode()
         except Exception:
             return encrypted_data
+
+
+class EncryptedString(TypeDecorator):
+    """SQLAlchemy column type that transparently encrypts/decrypts using Fernet AES-128-CBC.
+
+    Usage in a model::
+
+        parameters = Column(EncryptedString(4096), nullable=True)
+
+    The value is stored as a base64-urlsafe Fernet token (ciphertext).
+    NULL values pass through unchanged.
+    """
+
+    impl = String
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        """Encrypt before writing to the database.
+        Dicts/lists are JSON-serialised; other non-string values are str()-cast.
+        """
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            import json
+            try:
+                value = json.dumps(value)
+            except (TypeError, ValueError):
+                value = str(value)
+        return EncryptionHandler.encrypt(value)
+
+    def process_result_value(self, value, dialect):
+        """Decrypt after reading from the database."""
+        if value is None:
+            return value
+        return EncryptionHandler.decrypt(value)
