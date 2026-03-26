@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.tasks.analytics_tasks",
         "app.tasks.notification_tasks",
         "app.tasks.threat_intel_tasks",
+        "app.tasks.compliance_tasks",
     ],
 )
 
@@ -48,6 +49,21 @@ celery_app.conf.update(
         "sync-ioc-feeds": {
             "task": "app.tasks.threat_intel_tasks.sync_ioc_feeds",
             "schedule": 21600.0,   # 6 hours
+        },
+        # Phase 14: dispatch enabled report schedules every 15 minutes
+        "dispatch-report-schedules": {
+            "task": "app.tasks.report_tasks.dispatch_due_report_schedules",
+            "schedule": 900.0,     # 15 minutes
+        },
+        # Phase 15: hourly KPI + risk-score calculation for all active projects
+        "dispatch-project-analytics": {
+            "task": "app.tasks.analytics_tasks.dispatch_project_analytics",
+            "schedule": 3600.0,    # 1 hour
+        },
+        # Phase 15: midnight daily snapshots
+        "dispatch-daily-snapshots": {
+            "task": "app.tasks.analytics_tasks.dispatch_daily_snapshots",
+            "schedule": 86400.0,   # 24 hours
         },
     },
 )

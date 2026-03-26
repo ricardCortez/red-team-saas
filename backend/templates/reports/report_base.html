@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report.title | e }}</title>
+    <style>
+        /* ── Reset & Base ────────────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 13px;
+            color: #1a1a2e;
+            background: #f4f6fb;
+            line-height: 1.55;
+        }
+        a { color: #0056b3; }
+
+        /* ── Page Layout ─────────────────────────────────────────────────────── */
+        .page-wrapper { max-width: 1100px; margin: 0 auto; padding: 24px 32px 48px; }
+
+        /* ── Header ──────────────────────────────────────────────────────────── */
+        .report-header {
+            background: linear-gradient(135deg, #1f3a5f 0%, #003566 100%);
+            color: #fff;
+            border-radius: 8px;
+            padding: 32px 40px;
+            margin-bottom: 28px;
+        }
+        .report-header h1 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+        .report-header .meta { font-size: 12px; opacity: 0.8; }
+        .report-header .meta span { margin-right: 20px; }
+
+        /* ── Section ─────────────────────────────────────────────────────────── */
+        .section {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.06);
+            margin-bottom: 24px;
+            padding: 24px 28px;
+        }
+        .section h2 {
+            font-size: 17px;
+            font-weight: 700;
+            color: #003566;
+            border-bottom: 2px solid #e0e7f0;
+            padding-bottom: 10px;
+            margin-bottom: 18px;
+        }
+
+        /* ── Summary Cards ───────────────────────────────────────────────────── */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 16px;
+        }
+        .summary-card {
+            border-radius: 8px;
+            padding: 16px;
+            text-align: center;
+            color: #fff;
+        }
+        .summary-card .count { font-size: 36px; font-weight: 800; }
+        .summary-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
+        .card-total    { background: #003566; }
+        .card-critical { background: #dc3545; }
+        .card-high     { background: #e86c00; }
+        .card-medium   { background: #e6a800; color: #333; }
+        .card-low      { background: #28a745; }
+        .card-info     { background: #17a2b8; }
+
+        /* ── Compliance Bar ──────────────────────────────────────────────────── */
+        .compliance-score-wrap { display: flex; align-items: center; gap: 16px; margin-bottom: 12px; }
+        .compliance-bar-bg {
+            flex: 1; height: 18px; background: #e0e7f0; border-radius: 9px; overflow: hidden;
+        }
+        .compliance-bar-fill {
+            height: 100%; border-radius: 9px; background: #28a745;
+            transition: width .4s ease;
+        }
+        .compliance-score-label { font-size: 18px; font-weight: 700; min-width: 60px; text-align: right; }
+
+        /* ── Findings Table ──────────────────────────────────────────────────── */
+        .findings-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .findings-table thead th {
+            background: #1f3a5f;
+            color: #fff;
+            padding: 9px 12px;
+            text-align: left;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .findings-table tbody tr:nth-child(even) { background: #f7f9fc; }
+        .findings-table tbody tr:hover { background: #e8f0fe; }
+        .findings-table td { padding: 8px 12px; border-bottom: 1px solid #e5eaf0; vertical-align: top; }
+        .findings-table td.wrap { max-width: 320px; word-break: break-word; }
+
+        /* ── Severity Badges ─────────────────────────────────────────────────── */
+        .badge {
+            display: inline-block; padding: 2px 9px; border-radius: 12px;
+            font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+        }
+        .badge-critical { background: #f8d7da; color: #842029; }
+        .badge-high     { background: #fde8d8; color: #7d3200; }
+        .badge-medium   { background: #fff3cd; color: #664d03; }
+        .badge-low      { background: #d1e7dd; color: #0a3622; }
+        .badge-info     { background: #cff4fc; color: #055160; }
+
+        /* ── Chart canvas ────────────────────────────────────────────────────── */
+        .chart-wrap { max-width: 480px; margin: 0 auto; }
+
+        /* ── Footer ──────────────────────────────────────────────────────────── */
+        .report-footer {
+            text-align: center; font-size: 11px; color: #8899aa; margin-top: 40px;
+            border-top: 1px solid #dce3ed; padding-top: 16px;
+        }
+
+        @media print {
+            body { background: #fff; }
+            .page-wrapper { padding: 0; }
+            .section { box-shadow: none; border: 1px solid #ddd; }
+        }
+    </style>
+</head>
+<body>
+<div class="page-wrapper">
+
+    <!-- ── Header ─────────────────────────────────────────────────────────── -->
+    <div class="report-header">
+        <h1>{{ report.title | e }}</h1>
+        <div class="meta">
+            <span>&#128197; Generated: {{ report.generated_at }}</span>
+            <span>&#128194; Project: {{ report.project | e }}</span>
+            {% if report.description %}
+            <span>{{ report.description | e }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Executive Summary ──────────────────────────────────────────────── -->
+    <div class="section">
+        <h2>Executive Summary</h2>
+        <div class="summary-grid">
+            <div class="summary-card card-total">
+                <div class="count">{{ summary.total_findings | default(0) }}</div>
+                <div class="label">Total Findings</div>
+            </div>
+            <div class="summary-card card-critical">
+                <div class="count">{{ summary.critical | default(0) }}</div>
+                <div class="label">Critical</div>
+            </div>
+            <div class="summary-card card-high">
+                <div class="count">{{ summary.high | default(0) }}</div>
+                <div class="label">High</div>
+            </div>
+            <div class="summary-card card-medium">
+                <div class="count">{{ summary.medium | default(0) }}</div>
+                <div class="label">Medium</div>
+            </div>
+            <div class="summary-card card-low">
+                <div class="count">{{ summary.low | default(0) }}</div>
+                <div class="label">Low</div>
+            </div>
+            {% if summary.info is defined %}
+            <div class="summary-card card-info">
+                <div class="count">{{ summary.info | default(0) }}</div>
+                <div class="label">Info</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ── Compliance ─────────────────────────────────────────────────────── -->
+    {% if compliance and compliance.score is not none %}
+    <div class="section">
+        <h2>Compliance Status</h2>
+        <div class="compliance-score-wrap">
+            <div class="compliance-bar-bg">
+                <div class="compliance-bar-fill" style="width: {{ compliance.score }}%;
+                    background: {{ '#28a745' if compliance.score >= 80 else ('#e6a800' if compliance.score >= 50 else '#dc3545') }};"></div>
+            </div>
+            <div class="compliance-score-label">{{ compliance.score }}%</div>
+        </div>
+        <p>Status: <strong>{{ compliance.status }}</strong></p>
+    </div>
+    {% endif %}
+
+    <!-- ── Charts ─────────────────────────────────────────────────────────── -->
+    {% if charts_enabled %}
+    <div class="section">
+        <h2>Findings Distribution</h2>
+        <div class="chart-wrap">
+            <canvas id="severityChart" height="200"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Findings Table ─────────────────────────────────────────────────── -->
+    <div class="section">
+        <h2>Findings ({{ findings | length }})</h2>
+        {% if findings %}
+        <table class="findings-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Severity</th>
+                    <th>Host</th>
+                    <th>Tool</th>
+                    <th>Risk Score</th>
+                    <th class="wrap">Remediation</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in findings %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td><strong>{{ f.title | e }}</strong></td>
+                    <td>
+                        <span class="badge badge-{{ f.severity | lower }}">
+                            {{ f.severity | upper }}
+                        </span>
+                    </td>
+                    <td>{{ f.host | default('—') | e }}</td>
+                    <td>{{ f.tool | default('—') | e }}</td>
+                    <td>{{ f.risk_score | round(1) }}</td>
+                    <td class="wrap">{{ f.remediation | default('') | e | truncate(160) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No findings recorded for this report period.</p>
+        {% endif %}
+    </div>
+
+    <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+    <div class="report-footer">
+        Generated by Red Team SaaS &mdash; {{ report.generated_at }} &mdash; CONFIDENTIAL
+    </div>
+
+</div><!-- /page-wrapper -->
+
+{% if charts_enabled %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const ctx = document.getElementById('severityChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+            datasets: [{
+                data: [
+                    {{ summary.critical | default(0) }},
+                    {{ summary.high     | default(0) }},
+                    {{ summary.medium   | default(0) }},
+                    {{ summary.low      | default(0) }},
+                    {{ summary.info     | default(0) }}
+                ],
+                backgroundColor: ['#dc3545','#e86c00','#e6a800','#28a745','#17a2b8'],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: { display: false }
+            }
+        }
+    });
+})();
+</script>
+{% endif %}
+
+</body>
+</html>

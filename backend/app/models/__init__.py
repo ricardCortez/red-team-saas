@@ -20,8 +20,13 @@ from app.models.plugin import Plugin, PluginExecution
 from app.models.template import Template, TemplateCategory
 from app.models.threat_intel import ThreatIntel, SeverityLevel
 from app.models.risk_score import RiskScore
-from app.models.compliance_mapping import ComplianceMapping, ComplianceFramework, ComplianceStatus
-from app.models.report import Report, ReportStatus
+from app.models.compliance_mapping import ComplianceMapping, ComplianceFramework as ComplianceFrameworkEnum, ComplianceStatus as ComplianceStatusEnum
+from app.models.report import (
+    Report, ReportStatus,
+    # Phase 14
+    ReportV2, ReportTemplate, ReportVersion, ReportSchedule, ReportAuditLog,
+    DigitalSignature, ReportTypeV2, ReportFormatV2, ReportStatusV2,
+)
 # Phase 8 models
 from app.models.alert_rule import AlertRule, AlertChannel, AlertTrigger
 from app.models.notification import Notification, NotificationStatus
@@ -29,6 +34,32 @@ from app.models.notification import Notification, NotificationStatus
 from app.models.cve import CVE
 from app.models.mitre_technique import MitreTechnique
 from app.models.ioc import IOC, IOCType, IOCThreatLevel
+# Phase 15 models
+from app.models.analytics import (
+    KPI,
+    ProjectRiskScore,
+    ToolAnalytics,
+    DashboardConfig,
+    AnalyticsSnapshot,
+    BenchmarkData,
+    KPITypeEnum,
+    KPIStatusEnum,
+    MetricTypeEnum,
+    RiskLevelEnum,
+    TrendEnum,
+)
+# Phase 13 models
+from app.models.compliance import (
+    ComplianceFramework,
+    ComplianceRequirement,
+    ComplianceMappingResult,
+    ComplianceEvidenceLog,
+    ComplianceControlMatrix,
+    ComplianceFrameworkType,
+    ComplianceStatus,
+    EvidenceStatus,
+    ControlImplementationStatus,
+)
 
 __all__ = [
     # Base
@@ -52,10 +83,32 @@ __all__ = [
     "SeverityLevel",
     "RiskScore",
     "ComplianceMapping",
-    "ComplianceFramework",
-    "ComplianceStatus",
+    "ComplianceFrameworkEnum",
+    "ComplianceStatusEnum",
     "Report",
     "ReportStatus",
+    # Phase 15
+    "KPI",
+    "ProjectRiskScore",
+    "ToolAnalytics",
+    "DashboardConfig",
+    "AnalyticsSnapshot",
+    "BenchmarkData",
+    "KPITypeEnum",
+    "KPIStatusEnum",
+    "MetricTypeEnum",
+    "RiskLevelEnum",
+    "TrendEnum",
+    # Phase 14
+    "ReportV2",
+    "ReportTemplate",
+    "ReportVersion",
+    "ReportSchedule",
+    "ReportAuditLog",
+    "DigitalSignature",
+    "ReportTypeV2",
+    "ReportFormatV2",
+    "ReportStatusV2",
     # Phase 3 models
     "Project",
     "ProjectStatus",
@@ -84,4 +137,14 @@ __all__ = [
     "IOC",
     "IOCType",
     "IOCThreatLevel",
+    # Phase 13 models
+    "ComplianceFramework",
+    "ComplianceRequirement",
+    "ComplianceMappingResult",
+    "ComplianceEvidenceLog",
+    "ComplianceControlMatrix",
+    "ComplianceFrameworkType",
+    "ComplianceStatus",
+    "EvidenceStatus",
+    "ControlImplementationStatus",
 ]
