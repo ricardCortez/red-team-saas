@@ -10,6 +10,7 @@ from app.api.v1.endpoints import wordlists
 from app.api.v1.endpoints import threat_intel
 from app.api.v1.endpoints import compliance
 from app.api.v1.endpoints import integrations
+from app.api.v1.endpoints import security
 
 api_router = APIRouter()
 
@@ -37,3 +38,5 @@ api_router.include_router(threat_intel.router, prefix="", tags=["Threat Intel"])
 api_router.include_router(compliance.router, prefix="", tags=["Compliance"])
 # Phase 16
 api_router.include_router(integrations.router, prefix="", tags=["Integrations"])
+# Phase 17
+api_router.include_router(security.router, prefix="", tags=["Security"])

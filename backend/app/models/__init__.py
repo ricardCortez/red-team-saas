@@ -71,6 +71,17 @@ from app.models.integration import (
     IntegrationStatusEnum,
     TriggerTypeEnum,
 )
+# Phase 17 models
+from app.models.security import (
+    APIKey,
+    RateLimitConfig,
+    IPWhitelist,
+    RequestSignature,
+    OAuthProvider,
+    OAuthToken,
+    SecurityAuditLog,
+    TokenBucket,
+)
 
 __all__ = [
     # Base
@@ -167,4 +178,13 @@ __all__ = [
     "IntegrationTypeEnum",
     "IntegrationStatusEnum",
     "TriggerTypeEnum",
+    # Phase 17 models
+    "APIKey",
+    "RateLimitConfig",
+    "IPWhitelist",
+    "RequestSignature",
+    "OAuthProvider",
+    "OAuthToken",
+    "SecurityAuditLog",
+    "TokenBucket",
 ]
