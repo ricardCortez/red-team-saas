@@ -25,6 +25,10 @@ from app.models.report import Report, ReportStatus
 # Phase 8 models
 from app.models.alert_rule import AlertRule, AlertChannel, AlertTrigger
 from app.models.notification import Notification, NotificationStatus
+# Phase 12 models
+from app.models.cve import CVE
+from app.models.mitre_technique import MitreTechnique
+from app.models.ioc import IOC, IOCType, IOCThreatLevel
 
 __all__ = [
     # Base
@@ -74,4 +78,10 @@ __all__ = [
     "AlertTrigger",
     "Notification",
     "NotificationStatus",
+    # Phase 12 models
+    "CVE",
+    "MitreTechnique",
+    "IOC",
+    "IOCType",
+    "IOCThreatLevel",
 ]

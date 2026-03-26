@@ -7,6 +7,7 @@ from app.api.v1.endpoints import dashboard
 from app.api.v1.endpoints import alert_rules, notifications
 from app.api.v1.endpoints import targets
 from app.api.v1.endpoints import wordlists
+from app.api.v1.endpoints import threat_intel
 
 api_router = APIRouter()
 
@@ -28,3 +29,5 @@ api_router.include_router(alert_rules.router, prefix="", tags=["Alert Rules"])
 api_router.include_router(notifications.router, prefix="", tags=["Notifications"])
 # Phase 10
 api_router.include_router(wordlists.router, prefix="", tags=["Wordlists"])
+# Phase 12
+api_router.include_router(threat_intel.router, prefix="", tags=["Threat Intel"])

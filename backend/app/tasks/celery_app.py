@@ -12,6 +12,7 @@ celery_app = Celery(
         "app.tasks.report_tasks",
         "app.tasks.analytics_tasks",
         "app.tasks.notification_tasks",
+        "app.tasks.threat_intel_tasks",
     ],
 )
 
@@ -39,6 +40,14 @@ celery_app.conf.update(
         "precompute-metrics": {
             "task": "app.tasks.analytics_tasks.precompute_global_metrics",
             "schedule": 600.0,  # every 10 min
+        },
+        "sync-mitre-weekly": {
+            "task": "app.tasks.threat_intel_tasks.sync_mitre_techniques",
+            "schedule": 604800.0,  # 1 week
+        },
+        "sync-ioc-feeds": {
+            "task": "app.tasks.threat_intel_tasks.sync_ioc_feeds",
+            "schedule": 21600.0,   # 6 hours
         },
     },
 )

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # Architecture Option (A, B, C)
     ARCHITECTURE_OPTION: str = "C"
 
+    # Phase 12 - Threat Intelligence
+    NVD_API_KEY: Optional[str] = None   # Optional; improves NVD rate limit
+
     # SMTP (Phase 8 - Notifications)
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
