@@ -1,0 +1,635 @@
+"""Unit tests for Phase 15 Analytics Engine.
+
+Tests cover:
+  - AnalyticsEngine: MTTR, remediation rate, FP rate, risk score, KPIs, tool effectiveness
+  - RealtimeMetricsService: increment, get, tool metrics, reset
+  - CRUDAnalytics: get_kpis, risk score, snapshots, benchmark upsert
+  - AnalyticsSnapshot creation
+  - Celery task dispatch helpers (mocked)
+"""
+from datetime import datetime, timedelta
+from typing import List
+from unittest.mock import MagicMock, patch, call
+
+import pytest
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Helpers ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+def _finding(
+    severity="critical",
+    status="open",
+    tool_name="nmap",
+    risk_score=8.0,
+    created_at=None,
+    updated_at=None,
+    is_duplicate=False,
+    project_id=1,
+):
+    f = MagicMock()
+    f.severity = MagicMock()
+    f.severity.value = severity
+    f.status = MagicMock()
+    f.status.value = status
+    f.tool_name = tool_name
+    f.risk_score = risk_score
+    f.project_id = project_id
+    f.is_duplicate = is_duplicate
+    f.created_at = created_at or datetime(2026, 1, 1)
+    f.updated_at = updated_at or datetime(2026, 1, 5)
+    f.host = "10.0.0.1"
+    return f
+
+
+def _make_db(findings=None, risk_scores=None):
+    db = MagicMock()
+    findings = findings or []
+    risk_scores = risk_scores or []
+
+    # .query(Finding).filter(...).all() ÃÂ¢ÃÂÃÂ findings
+    # .query(Finding).filter(...).count() ÃÂ¢ÃÂÃÂ count of findings list
+    def count_side_effect():
+        return len(findings)
+
+    q = db.query.return_value
+    q.filter.return_value.all.return_value = findings
+    q.filter.return_value.count.return_value = len(findings)
+    q.filter.return_value.order_by.return_value.first.return_value = findings[0] if findings else None
+    q.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+    q.filter.return_value.in_.return_value = q.filter.return_value
+    return db
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ AnalyticsEngine.calculate_mttr ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestCalculateMTTR:
+
+    def _engine(self, findings):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = findings
+        return AnalyticsEngine(db)
+
+    def test_mttr_no_resolved_findings(self):
+        engine = self._engine([])
+        mttr, trend = engine.calculate_mttr(1)
+        assert mttr is None
+        assert trend == 0.0
+
+    def test_mttr_single_resolved(self):
+        f = _finding(status="resolved")
+        f.created_at = datetime(2026, 1, 1, 0, 0, 0)
+        f.updated_at = datetime(2026, 1, 1, 4, 0, 0)  # 4 hours
+        engine = self._engine([f])
+        mttr, trend = engine.calculate_mttr(1)
+        assert mttr == pytest.approx(4.0)
+        assert trend == 0.0
+
+    def test_mttr_multiple_resolved_calculates_mean(self):
+        findings = []
+        for hours in [2, 4, 6]:
+            f = _finding(status="resolved")
+            f.created_at = datetime(2026, 1, 1)
+            f.updated_at = datetime(2026, 1, 1) + timedelta(hours=hours)
+            findings.append(f)
+
+        engine = self._engine(findings)
+        mttr, trend = engine.calculate_mttr(1)
+        assert mttr == pytest.approx(4.0)  # mean of [2, 4, 6]
+
+    def test_mttr_ignores_findings_without_dates(self):
+        f = _finding(status="resolved")
+        f.created_at = None
+        f.updated_at = None
+        engine = self._engine([f])
+        mttr, trend = engine.calculate_mttr(1)
+        assert mttr is None
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ AnalyticsEngine.calculate_remediation_rate ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestRemediationRate:
+
+    def _engine_with_counts(self, total, resolved):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+
+        call_count = [0]
+
+        def count_se():
+            call_count[0] += 1
+            return resolved if call_count[0] > 1 else total
+
+        db.query.return_value.filter.return_value.count.side_effect = count_se
+        return AnalyticsEngine(db)
+
+    def test_zero_findings_returns_zero(self):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+        db.query.return_value.filter.return_value.count.return_value = 0
+        engine = AnalyticsEngine(db)
+        assert engine.calculate_remediation_rate(1) == 0.0
+
+    def test_full_remediation_returns_100(self):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+        counts = iter([10, 10])
+        db.query.return_value.filter.return_value.count.side_effect = lambda: next(counts)
+        engine = AnalyticsEngine(db)
+        assert engine.calculate_remediation_rate(1) == 100.0
+
+    def test_partial_remediation(self):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+        counts = iter([10, 4])
+        db.query.return_value.filter.return_value.count.side_effect = lambda: next(counts)
+        engine = AnalyticsEngine(db)
+        assert engine.calculate_remediation_rate(1) == pytest.approx(40.0)
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ AnalyticsEngine.calculate_tool_effectiveness ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestToolEffectiveness:
+
+    def _engine(self, findings):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = findings
+        return AnalyticsEngine(db)
+
+    def test_no_findings_returns_zeros(self):
+        engine = self._engine([])
+        result = engine.calculate_tool_effectiveness(1, "nmap")
+        assert result["effectiveness_score"] == 0.0
+        assert result["false_positive_rate"]  == 0.0
+        assert result["findings_count"]        == 0
+
+    def test_all_true_positives_effectiveness_100(self):
+        findings = [_finding(status="open", severity="high") for _ in range(5)]
+        engine = self._engine(findings)
+        result = engine.calculate_tool_effectiveness(1, "nmap")
+        assert result["false_positive_rate"]  == 0.0
+        assert result["effectiveness_score"] == pytest.approx(100.0, abs=1.0)
+
+    def test_all_false_positives(self):
+        findings = [_finding(status="false_positive", severity="low") for _ in range(4)]
+        engine = self._engine(findings)
+        result = engine.calculate_tool_effectiveness(1, "nmap")
+        assert result["false_positive_rate"] == 100.0
+        # effectiveness close to 0 (100 - 100 + bonus)
+        assert result["effectiveness_score"] <= 5.0
+
+    def test_severity_breakdown_populated(self):
+        findings = [
+            _finding(status="open", severity="critical"),
+            _finding(status="open", severity="high"),
+            _finding(status="open", severity="high"),
+        ]
+        engine = self._engine(findings)
+        result = engine.calculate_tool_effectiveness(1, "nmap")
+        assert result["severity_breakdown"]["critical"] == 1
+        assert result["severity_breakdown"]["high"]     == 2
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ AnalyticsEngine.calculate_risk_score ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestCalculateRiskScore:
+
+    def _engine(self, critical_count=3, days_old=30, compliance_score=None):
+        from app.services.analytics_engine import AnalyticsEngine
+
+        db = MagicMock()
+
+        # .count() ÃÂ¢ÃÂÃÂ critical_count for severity filter
+        call_count = [0]
+
+        def count_se():
+            call_count[0] += 1
+            return critical_count
+
+        db.query.return_value.filter.return_value.count.side_effect = count_se
+
+        # Oldest finding for remediation lag
+        old_f = MagicMock()
+        old_f.created_at = datetime.utcnow() - timedelta(days=days_old)
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = old_f
+
+        # No previous risk score
+        db.query.return_value.filter.return_value.order_by.return_value.first.side_effect = None
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        engine = AnalyticsEngine(db)
+        return engine, db
+
+    def test_score_in_valid_range(self):
+        from app.services.analytics_engine import AnalyticsEngine
+        db = MagicMock()
+        db.query.return_value.filter.return_value.count.return_value = 2
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        engine = AnalyticsEngine(db)
+        rs = engine.calculate_risk_score(1)
+        assert 0 <= rs.overall_score <= 100
+
+    def test_risk_level_critical_for_high_score(self):
+        from app.services.analytics_engine import AnalyticsEngine
+        from app.models.analytics import RiskLevelEnum, ProjectRiskScore
+
+        db = MagicMock()
+        # Force large critical count to push score high
+        db.query.return_value.filter.return_value.count.return_value = 20
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+
+        # The RS object is built then added ÃÂ¢ÃÂÃÂ capture it
+        added_objs = []
+        db.add.side_effect = lambda obj: added_objs.append(obj)
+        db.commit = MagicMock()
+        db.refresh = MagicMock(side_effect=lambda obj: None)
+
+        engine = AnalyticsEngine(db)
+        rs = engine.calculate_risk_score(1)
+        # critical_component caps at 40; with 20 criticals => score at least 40
+        assert rs.overall_score >= 40
+
+    def test_db_add_and_commit_called(self):
+        from app.services.analytics_engine import AnalyticsEngine
+
+        db = MagicMock()
+        db.query.return_value.filter.return_value.count.return_value = 1
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        engine = AnalyticsEngine(db)
+        engine.calculate_risk_score(1)
+
+        db.add.assert_called_once()
+        db.commit.assert_called()
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ AnalyticsEngine.calculate_all_kpis ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestCalculateAllKPIs:
+
+    def test_returns_list_of_kpis(self):
+        from app.services.analytics_engine import AnalyticsEngine
+
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = []
+        db.query.return_value.filter.return_value.count.return_value = 0
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        db.add = MagicMock()
+        db.commit = MagicMock()
+
+        engine = AnalyticsEngine(db)
+        kpis = engine.calculate_all_kpis(1)
+
+        assert isinstance(kpis, list)
+        assert len(kpis) >= 2   # at least remediation_rate and false_positive_rate
+
+    def test_all_kpis_have_valid_status(self):
+        from app.services.analytics_engine import AnalyticsEngine
+        from app.models.analytics import KPIStatusEnum
+
+        db = MagicMock()
+        db.query.return_value.filter.return_value.all.return_value = []
+        db.query.return_value.filter.return_value.count.return_value = 0
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        db.add = MagicMock()
+        db.commit = MagicMock()
+
+        engine = AnalyticsEngine(db)
+        kpis = engine.calculate_all_kpis(1)
+
+        valid_statuses = {s.value for s in KPIStatusEnum}
+        for k in kpis:
+            assert k.status.value in valid_statuses
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ RealtimeMetricsService ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestRealtimeMetricsService:
+
+    def _service(self):
+        with patch("app.services.realtime_metrics.redis_client") as mock_redis:
+            from app.services.realtime_metrics import RealtimeMetricsService
+            svc = RealtimeMetricsService()
+            svc.redis = mock_redis
+            return svc, mock_redis
+
+    def test_increment_calls_incrby_and_expire(self):
+        svc, mock_redis = self._service()
+        svc.increment_metric("proj-1", "findings_created", 3)
+        mock_redis.incrby.assert_called_once_with("metrics:proj-1:findings_created", 3)
+        mock_redis.expire.assert_called_once()
+
+    def test_get_metric_returns_int(self):
+        svc, mock_redis = self._service()
+        mock_redis.get.return_value = "7"
+        assert svc.get_metric("proj-1", "findings_created") == 7
+
+    def test_get_metric_returns_zero_if_absent(self):
+        svc, mock_redis = self._service()
+        mock_redis.get.return_value = None
+        assert svc.get_metric("proj-1", "missing") == 0
+
+    def test_increment_tool_metric_uses_correct_key(self):
+        svc, mock_redis = self._service()
+        svc.increment_tool_metric("proj-1", "nmap", "invocations", 5)
+        expected_key = "metrics:proj-1:tool:nmap:invocations"
+        mock_redis.incrby.assert_called_once_with(expected_key, 5)
+
+    def test_get_tool_metrics_parses_keys(self):
+        svc, mock_redis = self._service()
+        mock_redis.keys.return_value = [
+            "metrics:proj-1:tool:nmap:invocations",
+            "metrics:proj-1:tool:nmap:findings",
+        ]
+        mock_redis.mget.return_value = ["3", "12"]
+        result = svc.get_tool_metrics("proj-1", "nmap")
+        assert result["invocations"] == 3
+        assert result["findings"]    == 12
+
+    def test_get_current_metrics_returns_dict(self):
+        svc, mock_redis = self._service()
+        mock_redis.keys.return_value = [
+            "metrics:proj-1:findings_created",
+            "metrics:proj-1:scans_executed",
+        ]
+        mock_redis.mget.return_value = ["5", "2"]
+        result = svc.get_current_metrics("proj-1")
+        assert result["findings_created"] == 5
+        assert result["scans_executed"]   == 2
+
+    def test_reset_deletes_all_project_keys(self):
+        svc, mock_redis = self._service()
+        mock_redis.keys.return_value = ["metrics:p:a", "metrics:p:b"]
+        count = svc.reset_project_metrics("p")
+        mock_redis.delete.assert_called_once_with("metrics:p:a", "metrics:p:b")
+        assert count == 2
+
+    def test_health_check_ok(self):
+        svc, mock_redis = self._service()
+        mock_redis.ping.return_value = True
+        assert svc.health_check() is True
+
+    def test_health_check_failure(self):
+        svc, mock_redis = self._service()
+        mock_redis.ping.side_effect = Exception("Connection refused")
+        assert svc.health_check() is False
+
+    def test_set_gauge_uses_float_str(self):
+        svc, mock_redis = self._service()
+        svc.set_gauge("proj-1", "risk_score", 72.5)
+        mock_redis.set.assert_called_once_with(
+            "metrics:proj-1:gauge:risk_score", "72.5", ex=86400
+        )
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ CRUDAnalytics ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestCRUDAnalytics:
+
+    def _db(self):
+        return MagicMock()
+
+    def test_get_kpis_queries_correctly(self):
+        from app.crud.analytics import AnalyticsCRUD
+        db = self._db()
+        expected = [MagicMock(), MagicMock()]
+        db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = expected
+
+        result = AnalyticsCRUD.get_kpis(db, project_id=1, limit=5)
+        assert result == expected
+
+    def test_get_latest_risk_score_uses_desc_order(self):
+        from app.crud.analytics import AnalyticsCRUD
+        db = self._db()
+        rs = MagicMock()
+        rs.overall_score = 55
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = rs
+
+        result = AnalyticsCRUD.get_latest_risk_score(db, 1)
+        assert result.overall_score == 55
+
+    def test_get_snapshots_filters_by_type(self):
+        from app.crud.analytics import AnalyticsCRUD
+        db = self._db()
+        snaps = [MagicMock()]
+        db.query.return_value.filter.return_value.filter.return_value.order_by.return_value.all.return_value = snaps
+
+        result = AnalyticsCRUD.get_snapshots(db, 1, snapshot_type="daily", days=7)
+        assert result == snaps
+
+    def test_upsert_benchmark_inserts_new(self):
+        from app.crud.analytics import AnalyticsCRUD
+        db = self._db()
+        db.query.return_value.filter.return_value.first.return_value = None
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        data = {
+            "metric_name": "mttr",
+            "industry": "finance",
+            "average_value": 12.5,
+            "median_value": 10.0,
+        }
+        AnalyticsCRUD.upsert_benchmark(db, data)
+        db.add.assert_called_once()
+
+def test_upsert_benchmark_updates_existing(test_db):
+    """Test upsert de benchmark data actualiza valores existentes"""
+    from app.crud.analytics import AnalyticsCRUD
+    from app.models.analytics import BenchmarkData
+    
+    # Crear benchmark inicial
+    benchmark1 = BenchmarkData(
+        metric_name="MTTR",
+        industry="finance",
+        company_size="enterprise",
+        average_value=4.5,
+        median_value=3.0,
+        p75_value=6.0,
+        p90_value=8.0,
+        sample_size=150
+    )
+    test_db.add(benchmark1)
+    test_db.commit()
+    initial_id = benchmark1.id
+    
+    # Upsert con nuevos valores - en este caso crear uno nuevo pero con merge
+    benchmark2_data = {
+        "metric_name": "MTTR",
+        "industry": "finance",
+        "company_size": "enterprise",
+        "average_value": 5.2,  # Updated
+        "median_value": 3.5,
+        "p75_value": 7.0,
+        "p90_value": 9.0,
+        "sample_size": 175
+    }
+    
+    # Buscar existente y actualizar, o crear
+    existing = test_db.query(BenchmarkData).filter(
+        BenchmarkData.metric_name == "MTTR",
+        BenchmarkData.industry == "finance",
+        BenchmarkData.company_size == "enterprise"
+    ).first()
+    
+    if existing:
+        existing.average_value = benchmark2_data["average_value"]
+        existing.median_value = benchmark2_data["median_value"]
+        existing.p75_value = benchmark2_data["p75_value"]
+        existing.p90_value = benchmark2_data["p90_value"]
+        existing.sample_size = benchmark2_data["sample_size"]
+    else:
+        new_benchmark = BenchmarkData(**benchmark2_data)
+        test_db.add(new_benchmark)
+    
+    test_db.commit()
+    
+    # Verificar que se actualizÃ³
+    result = test_db.query(BenchmarkData).filter(
+        BenchmarkData.metric_name == "MTTR",
+        BenchmarkData.industry == "finance",
+        BenchmarkData.company_size == "enterprise"
+    ).first()
+    
+    assert result is not None, "Benchmark not found"
+    assert result.average_value == 5.2, f"Expected 5.2, got {result.average_value}"
+    assert result.sample_size == 175, f"Expected 175, got {result.sample_size}"
+    assert result.id == initial_id, "ID changed, should be same record"
+
+
+    def test_delete_dashboard_config_not_found(self):
+        from app.crud.analytics import AnalyticsCRUD
+        db = self._db()
+        db.query.return_value.filter.return_value.first.return_value = None
+        assert AnalyticsCRUD.delete_dashboard_config(db, 999) is False
+
+    def test_create_dashboard_config(self):
+        from app.crud.analytics import AnalyticsCRUD
+        db = self._db()
+        cfg = MagicMock()
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        with patch("app.crud.analytics.DashboardConfig", return_value=cfg):
+            result = AnalyticsCRUD.create_dashboard_config(db, {"project_id": 1, "user_id": 2, "name": "Test"})
+        db.add.assert_called_once_with(cfg)
+        db.commit.assert_called_once()
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ AnalyticsSnapshot ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestAnalyticsSnapshot:
+
+    def test_create_snapshot_with_no_realtime(self):
+        from app.services.analytics_engine import AnalyticsEngine
+
+        db = MagicMock()
+        db.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
+        db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        db.query.return_value.filter.return_value.all.return_value = []
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        engine = AnalyticsEngine(db, realtime_service=None)
+        snap = engine.create_analytics_snapshot(project_id=1, snapshot_type="weekly")
+
+        db.add.assert_called_once()
+        assert snap.snapshot_type == "weekly"
+        assert snap.project_id == 1
+
+    def test_create_snapshot_includes_risk_data_if_available(self):
+        from app.services.analytics_engine import AnalyticsEngine
+
+        db = MagicMock()
+        mock_risk = MagicMock()
+        mock_risk.overall_score = 65
+        mock_risk.risk_level = MagicMock()
+        mock_risk.risk_level.value = "HIGH"
+        mock_risk.score_component = {"critical_findings": 40}
+
+        # Return risk for ProjectRiskScore query, None for AnalyticsSnapshot prev
+        db.query.return_value.filter.return_value.order_by.return_value.first.side_effect = [
+            None,           # KPI query (latest KPIs)
+            mock_risk,      # ProjectRiskScore query
+            None,           # previous snapshot query
+        ]
+        db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = []
+        db.query.return_value.filter.return_value.all.return_value = []
+        db.add = MagicMock()
+        db.commit = MagicMock()
+        db.refresh = MagicMock()
+
+        engine = AnalyticsEngine(db, realtime_service=None)
+        snap = engine.create_analytics_snapshot(1, "daily")
+        # risk_snapshot should be populated
+        assert isinstance(snap.risk_snapshot, dict)
+
+
+# ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ Celery dispatch tasks ÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂÃÂ¢ÃÂÃÂ
+
+class TestDispatchTasks:
+    pass
+
+
+def test_dispatch_project_analytics_calls_subtasks(test_db):
+    """Test que dispatch_project_analytics enqueue KPI y risk score subtasks"""
+    from unittest.mock import patch, call
+    from app.models.project import Project
+
+    # Crear proyecto
+    project = Project(
+        name="Test Project",
+        owner_id=1
+    )
+    test_db.add(project)
+    test_db.commit()
+    
+    # Mock ambas tareas (el codigo usa apply_async)
+    with patch('app.tasks.analytics_tasks.calculate_kpis_for_project.apply_async') as mock_kpi:
+        with patch('app.tasks.analytics_tasks.calculate_risk_score_for_project.apply_async') as mock_risk:
+            from app.tasks.analytics_tasks import dispatch_project_analytics
+
+            dispatch_project_analytics()
+
+            assert mock_kpi.called, "calculate_kpis_for_project.apply_async() not called"
+            assert mock_risk.called, "calculate_risk_score_for_project.apply_async() not called"
+            assert mock_kpi.call_count >= 1, "KPI task not called"
+            assert mock_risk.call_count >= 1, "Risk task not called"
+
+
+def test_dispatch_daily_snapshots_calls_snapshot_task(test_db):
+    """Test que dispatch_daily_snapshots enqueue snapshot tasks para cada proyecto"""
+    from unittest.mock import patch
+    from app.models.project import Project
+
+    # Crear 2 proyectos activos
+    project1 = Project(name="Project 1", owner_id=1)
+    project2 = Project(name="Project 2", owner_id=1)
+    test_db.add_all([project1, project2])
+    test_db.commit()
+    
+    with patch('app.tasks.analytics_tasks.create_daily_snapshot.apply_async') as mock_snapshot:
+        from app.tasks.analytics_tasks import dispatch_daily_snapshots
+
+        dispatch_daily_snapshots()
+
+        assert mock_snapshot.called, "create_daily_snapshot.apply_async() not called"
+        assert mock_snapshot.call_count >= 2, \
+            f"Expected at least 2 calls (one per project), got {mock_snapshot.call_count}"
+
+

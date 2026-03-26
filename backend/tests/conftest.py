@@ -77,6 +77,12 @@ def db_session():
 
 
 @pytest.fixture
+def test_db(db_session):
+    """Alias for db_session fixture."""
+    return db_session
+
+
+@pytest.fixture
 def client():
     """FastAPI TestClient backed by the in-memory test database."""
 

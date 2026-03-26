@@ -30,25 +30,27 @@ class S3ReportStorage:
 
     def upload_report(
         self,
-        report_id: int,
+        report_id,
         content: bytes,
-        fmt: str,
-        version: int,
+        format: str = None,
+        version: int = 1,
         content_type: Optional[str] = None,
+        fmt: str = None,
     ) -> Dict:
         """
         Upload report bytes to S3.
 
-        :returns: {s3_key, file_size_bytes, checksum_sha256, presigned_url}
+        :returns: {s3_key, file_size_bytes, checksum_sha256, url}
         """
-        s3_key = f"reports/{report_id}/v{version}/report.{fmt}"
+        fmt_value = format or fmt or "pdf"
+        s3_key = f"reports/{report_id}/v{version}/report.{fmt_value}"
         checksum = hashlib.sha256(content).hexdigest()
-        ct = content_type or _CONTENT_TYPES.get(fmt, "application/octet-stream")
+        ct = content_type or _CONTENT_TYPES.get(fmt_value, "application/octet-stream")
 
         metadata = {
             "report-id": str(report_id),
             "version": str(version),
-            "format": fmt,
+            "format": fmt_value,
             "uploaded-at": datetime.utcnow().isoformat(),
             "checksum": checksum,
         }
@@ -62,19 +64,25 @@ class S3ReportStorage:
             ServerSideEncryption="AES256",
         )
 
+        url = self._presigned_url(s3_key)
         return {
             "s3_key": s3_key,
             "file_size_bytes": len(content),
             "checksum_sha256": checksum,
-            "presigned_url": self._presigned_url(s3_key),
+            "url": url,
+            "presigned_url": url,
         }
 
-    def download_url(self, s3_key: str, expires_in: int = 3600) -> Dict:
+    def download_report(self, s3_key: str, expires_in: int = 3600) -> Dict:
         """Return a presigned download URL for the given S3 key."""
         return {
             "url": self._presigned_url(s3_key, expires_in),
             "expires_in": expires_in,
         }
+
+    def download_url(self, s3_key: str, expires_in: int = 3600) -> Dict:
+        """Alias for download_report."""
+        return self.download_report(s3_key, expires_in)
 
     def list_versions(self, report_id: int) -> List[Dict]:
         """List all S3 objects for a given report (all versions/formats)."""
@@ -95,9 +103,12 @@ class S3ReportStorage:
         """Delete a single object from S3."""
         self.s3.delete_object(Bucket=self.bucket_name, Key=s3_key)
 
-    def delete_report(self, report_id: int) -> int:
-        """Delete all S3 objects for a report. Returns count deleted."""
-        versions = self.list_versions(report_id)
+    def delete_report(self, s3_key_or_report_id) -> int:
+        """Delete S3 object(s) for a report. Accepts an s3_key string or report_id."""
+        if isinstance(s3_key_or_report_id, str):
+            self.s3.delete_object(Bucket=self.bucket_name, Key=s3_key_or_report_id)
+            return 1
+        versions = self.list_versions(s3_key_or_report_id)
         for obj in versions:
             self.delete_object(obj["key"])
         return len(versions)

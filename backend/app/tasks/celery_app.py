@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.tasks.notification_tasks",
         "app.tasks.threat_intel_tasks",
         "app.tasks.compliance_tasks",
+        "app.tasks.integration_tasks",
     ],
 )
 
@@ -64,6 +65,16 @@ celery_app.conf.update(
         "dispatch-daily-snapshots": {
             "task": "app.tasks.analytics_tasks.dispatch_daily_snapshots",
             "schedule": 86400.0,   # 24 hours
+        },
+        # Phase 16: retry failed webhook deliveries every 15 minutes
+        "retry-failed-webhook-deliveries": {
+            "task": "app.tasks.integration_tasks.retry_failed_webhook_deliveries",
+            "schedule": 900.0,     # 15 minutes
+        },
+        # Phase 16: health-check active integrations every 6 hours
+        "health-check-integrations": {
+            "task": "app.tasks.integration_tasks.health_check_integrations",
+            "schedule": 21600.0,   # 6 hours
         },
     },
 )

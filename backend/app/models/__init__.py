@@ -60,6 +60,17 @@ from app.models.compliance import (
     EvidenceStatus,
     ControlImplementationStatus,
 )
+# Phase 16 models
+from app.models.integration import (
+    Integration,
+    NotificationRule,
+    IntegrationAuditLog,
+    WebhookDelivery,
+    IntegrationTemplate,
+    IntegrationTypeEnum,
+    IntegrationStatusEnum,
+    TriggerTypeEnum,
+)
 
 __all__ = [
     # Base
@@ -147,4 +158,13 @@ __all__ = [
     "ComplianceStatus",
     "EvidenceStatus",
     "ControlImplementationStatus",
+    # Phase 16 models
+    "Integration",
+    "NotificationRule",
+    "IntegrationAuditLog",
+    "WebhookDelivery",
+    "IntegrationTemplate",
+    "IntegrationTypeEnum",
+    "IntegrationStatusEnum",
+    "TriggerTypeEnum",
 ]

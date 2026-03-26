@@ -149,7 +149,12 @@ class AnalyticsEngine:
             }
 
         total     = len(findings)
-        false_pos = sum(1 for f in findings if f.status == FindingStatus.false_positive)
+        _fp_val   = FindingStatus.false_positive.value
+        false_pos = sum(
+            1 for f in findings
+            if f.status == FindingStatus.false_positive
+            or getattr(f.status, "value", None) == _fp_val
+        )
         true_pos  = total - false_pos
 
         fp_rate = (false_pos / total) * 100
