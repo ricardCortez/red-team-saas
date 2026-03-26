@@ -6,7 +6,7 @@ import os
 import signal
 import logging
 from typing import Optional, List, Callable
-from app.core.tool_engine.base_tool import BaseTool, ToolResult
+from app.core.tool_engine.base_tool import BaseTool, ToolCategory, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,16 @@ class SubprocessExecutor:
                 raw_output="",
                 error=f"Invalid target: {target}",
             )
+
+        # Safety check: block excessively large brute force attempts
+        if tool.category == ToolCategory.BRUTE_FORCE:
+            max_attempts = options.get("max_attempts", 0)
+            if max_attempts and max_attempts > 10000:
+                return ToolResult(
+                    success=False,
+                    raw_output="",
+                    error=f"max_attempts {max_attempts} exceeds safety limit of 10000",
+                )
 
         command = tool.build_command(target, options)
         timeout = options.get("timeout", tool.default_timeout)

@@ -35,9 +35,10 @@ class Task(Base, BaseModel):
     celery_task_id = Column(String(255), nullable=True, index=True)
     error_message = Column(Text, nullable=True)
 
-    user = relationship("User", back_populates="tasks")
+    user      = relationship("User", back_populates="tasks")
     workspace = relationship("Workspace", back_populates="tasks")
-    results = relationship("Result", back_populates="task", cascade="all, delete-orphan")
+    project   = relationship("Project", back_populates="tasks")
+    results   = relationship("Result", back_populates="task", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Task(id={self.id}, status={self.status}, tool={self.tool_name})>"

@@ -1,11 +1,12 @@
 """CRUD for Project"""
 import json
-from typing import Dict, Optional, Union, Any
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple, Union, Any
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, desc
 from app.crud.base import CRUDBase
-from app.models.project import Project
+from app.models.project import Project, ProjectStatus
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 _JSON_LIST_FIELDS = ("tags", "compliance")
@@ -91,6 +92,97 @@ class CRUDProject(CRUDBase[Project, ProjectCreate, ProjectUpdate]):
             "scan_count": scan_count,
             "findings": {sev: count for sev, count in results_by_severity},
         }
+
+
+    # ── Phase 9 helpers ───────────────────────────────────────────────────────
+
+    def get_for_user(
+        self,
+        db: Session,
+        user_id: int,
+        status: Optional[ProjectStatus] = None,
+        skip: int = 0,
+        limit: int = 20,
+    ) -> Tuple[List[Project], int]:
+        """Return projects visible to the user (admin sees all; others see membership)."""
+        from app.models.user import User
+        from app.models.project_member import ProjectMember
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.is_superuser:
+            q = db.query(Project).filter(Project.is_active == True)
+        else:
+            q = (
+                db.query(Project)
+                .join(ProjectMember, ProjectMember.project_id == Project.id)
+                .filter(ProjectMember.user_id == user_id, Project.is_active == True)
+            )
+
+        if status:
+            q = q.filter(Project.status == status)
+
+        total = q.count()
+        items = q.order_by(desc(Project.created_at)).offset(skip).limit(limit).all()
+        return items, total
+
+    def get_user_role(self, db: Session, project_id: int, user_id: int):
+        """Return the ProjectRole of user in project, or None."""
+        from app.models.project_member import ProjectMember
+        member = (
+            db.query(ProjectMember)
+            .filter(
+                ProjectMember.project_id == project_id,
+                ProjectMember.user_id == user_id,
+            )
+            .first()
+        )
+        return member.role if member else None
+
+    def can_manage(self, db: Session, project_id: int, user_id: int) -> bool:
+        """True if user is LEAD, owner, or global superuser."""
+        from app.models.user import User
+        from app.models.project_member import ProjectRole
+
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.is_superuser:
+            return True
+
+        project = db.query(Project).filter(Project.id == project_id).first()
+        if project and project.owner_id == user_id:
+            return True
+
+        role = self.get_user_role(db, project_id, user_id)
+        return role == ProjectRole.lead
+
+    def archive(self, db: Session, project: Project) -> Project:
+        project.status = ProjectStatus.archived
+        project.archived_at = datetime.utcnow()
+        db.commit()
+        db.refresh(project)
+        return project
+
+    def create_with_owner_member(
+        self, db: Session, *, obj_in: ProjectCreate, owner_id: int
+    ) -> Project:
+        """Create project AND auto-add owner as LEAD member."""
+        from app.models.project_member import ProjectMember, ProjectRole
+
+        data = self._to_json(jsonable_encoder(obj_in))
+        data["owner_id"] = owner_id
+        project = Project(**data)
+        db.add(project)
+        db.flush()
+
+        member = ProjectMember(
+            project_id=project.id,
+            user_id=owner_id,
+            role=ProjectRole.lead,
+            added_by=owner_id,
+        )
+        db.add(member)
+        db.commit()
+        db.refresh(project)
+        return project
 
 
 crud_project = CRUDProject(Project)

@@ -72,7 +72,7 @@ class Report(Base, BaseModel):
     generated_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    project = relationship("Project", foreign_keys=[project_id])
+    project = relationship("Project", back_populates="reports", foreign_keys=[project_id])
     author = relationship("User", foreign_keys=[created_by])
 
     def __repr__(self):

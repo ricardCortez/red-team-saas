@@ -10,6 +10,8 @@ celery_app = Celery(
         "app.tasks.tool_executor",
         "app.tasks.cleanup_tasks",
         "app.tasks.report_tasks",
+        "app.tasks.analytics_tasks",
+        "app.tasks.notification_tasks",
     ],
 )
 
@@ -33,6 +35,10 @@ celery_app.conf.update(
         "health-check-workers": {
             "task": "app.tasks.cleanup_tasks.health_check",
             "schedule": 300.0,
+        },
+        "precompute-metrics": {
+            "task": "app.tasks.analytics_tasks.precompute_global_metrics",
+            "schedule": 600.0,  # every 10 min
         },
     },
 )

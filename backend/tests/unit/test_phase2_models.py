@@ -10,7 +10,8 @@ from app.models.template import Template, TemplateCategory
 from app.models.threat_intel import ThreatIntel, SeverityLevel
 from app.models.risk_score import RiskScore
 from app.models.compliance_mapping import ComplianceMapping, ComplianceFramework, ComplianceStatus
-from app.models.report import Report, ReportStatus
+from app.models.report import Report, ReportStatus, ReportType, ReportFormat, ReportClassification
+from app.models.project import Project
 from app.core.security import PasswordHandler
 
 
@@ -51,6 +52,18 @@ def _make_task(db, user, workspace=None):
     db.commit()
     db.refresh(task)
     return task
+
+
+def _make_project(db, owner):
+    project = Project(
+        owner_id=owner.id,
+        name="Test Project",
+        target="10.0.0.0/24",
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    return project
 
 
 # ── Workspace ─────────────────────────────────────────────────────────────────
@@ -352,77 +365,113 @@ class TestComplianceMappingModel:
         assert "ISO27001" in r
 
 
-# ── Report ────────────────────────────────────────────────────────────────────
+# ── Report (Phase 6) ──────────────────────────────────────────────────────────
 
 class TestReportModel:
     def test_create_report(self, db_session):
         user = _make_user(db_session, "rpt1")
+        project = _make_project(db_session, user)
         report = Report(
-            author_id=user.id,
+            created_by=user.id,
+            project_id=project.id,
             title="Q1 2026 External Pentest Report",
-            status=ReportStatus.draft,
+            report_type=ReportType.technical,
+            status=ReportStatus.pending,
         )
         db_session.add(report)
         db_session.commit()
         db_session.refresh(report)
         assert report.id is not None
-        assert report.status == ReportStatus.draft
+        assert report.status == ReportStatus.pending
 
     def test_report_default_status(self, db_session):
         user = _make_user(db_session, "rpt2")
-        report = Report(author_id=user.id, title="Draft Report")
-        db_session.add(report)
-        db_session.commit()
-        db_session.refresh(report)
-        assert report.status == ReportStatus.draft
-
-    def test_report_all_statuses(self, db_session):
-        user = _make_user(db_session, "rpt3")
-        for i, status in enumerate(ReportStatus):
-            r = Report(author_id=user.id, title=f"Report {i}", status=status)
-            db_session.add(r)
-        db_session.commit()
-        count = db_session.query(Report).filter_by(author_id=user.id).count()
-        assert count == len(ReportStatus)
-
-    def test_report_linked_to_workspace(self, db_session):
-        user = _make_user(db_session, "rpt4")
-        ws = _make_workspace(db_session, user)
-        report = Report(author_id=user.id, workspace_id=ws.id, title="Scoped Report")
-        db_session.add(report)
-        db_session.commit()
-        db_session.refresh(report)
-        assert report.workspace_id == ws.id
-
-    def test_report_compute_signature(self, db_session):
-        user = _make_user(db_session, "rpt5")
+        project = _make_project(db_session, user)
         report = Report(
-            author_id=user.id,
-            title="Signed Report",
-            executive_summary="No critical issues found.",
-            findings=json.dumps([{"title": "Open port 22", "severity": "low"}]),
-            recommendations="Close unnecessary ports.",
+            created_by=user.id,
+            project_id=project.id,
+            title="Draft Report",
+            report_type=ReportType.executive,
         )
         db_session.add(report)
         db_session.commit()
-        sig = report.compute_signature()
-        assert len(sig) == 64  # SHA-256 hex digest is 64 chars
-        # Deterministic: same content → same signature
-        assert sig == report.compute_signature()
+        db_session.refresh(report)
+        assert report.status == ReportStatus.pending
 
-    def test_report_signature_changes_with_content(self, db_session):
-        user = _make_user(db_session, "rpt6")
-        report = Report(author_id=user.id, title="Original Title")
+    def test_report_all_statuses(self, db_session):
+        user = _make_user(db_session, "rpt3")
+        project = _make_project(db_session, user)
+        for i, status in enumerate(ReportStatus):
+            r = Report(
+                created_by=user.id,
+                project_id=project.id,
+                title=f"Report {i}",
+                report_type=ReportType.technical,
+                status=status,
+            )
+            db_session.add(r)
+        db_session.commit()
+        count = db_session.query(Report).filter_by(created_by=user.id).count()
+        assert count == len(ReportStatus)
+
+    def test_report_linked_to_project(self, db_session):
+        user = _make_user(db_session, "rpt4")
+        project = _make_project(db_session, user)
+        report = Report(
+            created_by=user.id,
+            project_id=project.id,
+            title="Scoped Report",
+            report_type=ReportType.compliance,
+        )
         db_session.add(report)
         db_session.commit()
-        sig1 = report.compute_signature()
-        report.title = "Modified Title"
-        sig2 = report.compute_signature()
-        assert sig1 != sig2
+        db_session.refresh(report)
+        assert report.project_id == project.id
+
+    def test_report_classification(self, db_session):
+        user = _make_user(db_session, "rpt5")
+        project = _make_project(db_session, user)
+        report = Report(
+            created_by=user.id,
+            project_id=project.id,
+            title="Restricted Report",
+            report_type=ReportType.executive,
+            classification=ReportClassification.restricted,
+        )
+        db_session.add(report)
+        db_session.commit()
+        db_session.refresh(report)
+        assert report.classification == ReportClassification.restricted
+
+    def test_report_stats_snapshot(self, db_session):
+        user = _make_user(db_session, "rpt6")
+        project = _make_project(db_session, user)
+        report = Report(
+            created_by=user.id,
+            project_id=project.id,
+            title="Stats Report",
+            report_type=ReportType.technical,
+            total_findings=10,
+            critical_count=2,
+            high_count=4,
+            overall_risk=9.5,
+        )
+        db_session.add(report)
+        db_session.commit()
+        db_session.refresh(report)
+        assert report.total_findings == 10
+        assert report.critical_count == 2
+        assert report.overall_risk == 9.5
 
     def test_report_repr(self, db_session):
         user = _make_user(db_session, "rpt7")
-        report = Report(author_id=user.id, title="Repr Report")
+        project = _make_project(db_session, user)
+        report = Report(
+            created_by=user.id,
+            project_id=project.id,
+            title="Repr Report",
+            report_type=ReportType.executive,
+        )
         db_session.add(report)
         db_session.commit()
         assert "Repr Report" in repr(report)
@@ -478,21 +527,26 @@ class TestPhase2Integration:
         db_session.add(cm)
         db_session.commit()
 
-        # 6. Final report
+        # 6. Final report (Phase 6 schema)
+        project = _make_project(db_session, user)
         report = Report(
-            author_id=user.id,
-            workspace_id=ws.id,
+            created_by=user.id,
+            project_id=project.id,
             title="Full Workflow Report",
-            findings=json.dumps([{"cve": "CVE-2026-00001", "severity": "high"}]),
-            status=ReportStatus.final,
+            report_type=ReportType.technical,
+            status=ReportStatus.ready,
+            total_findings=1,
+            critical_count=0,
+            high_count=1,
+            overall_risk=8.1,
         )
         db_session.add(report)
         db_session.commit()
-        report.signature_hash = report.compute_signature()
-        db_session.commit()
+        db_session.refresh(report)
 
-        assert report.signature_hash is not None
-        assert len(report.signature_hash) == 64
+        assert report.id is not None
+        assert report.status == ReportStatus.ready
+        assert report.overall_risk == 8.1
 
 
 # ── Field-level encryption ─────────────────────────────────────────────────────

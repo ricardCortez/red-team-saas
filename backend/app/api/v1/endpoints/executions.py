@@ -35,6 +35,16 @@ def create_execution(
                 detail=f"Tool '{payload.tool_name}' is not registered",
             )
 
+    # Phase 9: scope validation
+    if payload.project_id:
+        from app.core.scope_validator import ScopeValidator
+        validator = ScopeValidator(db, payload.project_id)
+        if not validator.is_allowed(payload.target):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Target '{payload.target}' is out of scope for this project",
+            )
+
     task = Task(
         name=f"{payload.tool_name} -> {payload.target}",
         tool_name=payload.tool_name,

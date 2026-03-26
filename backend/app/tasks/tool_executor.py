@@ -86,12 +86,27 @@ def execute_tool(
         db.refresh(result_obj)
 
         # Phase 5: extract findings from JSON to individual Finding rows
+        created_findings = []
         if result.findings:
             try:
                 from app.core.findings_processor import process_result_findings
                 process_result_findings(db, result_obj)
+                # Reload findings created for this result to trigger alerts
+                from app.models.finding import Finding as FindingModel
+                created_findings = db.query(FindingModel).filter(
+                    FindingModel.result_id == result_obj.id
+                ).all()
             except Exception as fp_exc:
                 logger.warning("findings_processor failed for result %s: %s", result_obj.id, fp_exc)
+
+        # Phase 8: trigger notification alerts asynchronously
+        try:
+            from app.tasks.notification_tasks import evaluate_finding_alerts, evaluate_scan_alerts
+            for f in created_findings:
+                evaluate_finding_alerts.apply_async(args=[f.id], queue="notifications")
+            evaluate_scan_alerts.apply_async(args=[task_id], queue="notifications")
+        except Exception as notif_exc:
+            logger.warning("notification_tasks dispatch failed for task %s: %s", task_id, notif_exc)
 
         create_audit_log(
             db=db,

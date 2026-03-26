@@ -1,5 +1,5 @@
 """Application Configuration"""
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -42,6 +42,14 @@ class Settings(BaseSettings):
 
     # Architecture Option (A, B, C)
     ARCHITECTURE_OPTION: str = "C"
+
+    # SMTP (Phase 8 - Notifications)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_TLS: bool = True
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = "alerts@redteam.local"
 
     # Tool Executor
     TOOL_EXECUTION_TIMEOUT: int = 300   # 5 minutos por herramienta

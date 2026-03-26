@@ -82,7 +82,7 @@ class Finding(Base, BaseModel):
     scan = relationship("Scan", back_populates="findings")
     result = relationship("Result", back_populates="findings_rel", foreign_keys=[result_id])
     task = relationship("Task", foreign_keys=[task_id])
-    project = relationship("Project", foreign_keys=[project_id])
+    project = relationship("Project", back_populates="findings", foreign_keys=[project_id])
     verifier = relationship("User", foreign_keys=[verified_by])
     assignee = relationship("User", foreign_keys=[assigned_to])
     duplicate_parent = relationship("Finding", remote_side=[id], foreign_keys=[duplicate_of])

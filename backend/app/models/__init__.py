@@ -7,9 +7,12 @@ from app.models.task import Task
 from app.models.result import Result
 from app.models.audit_log import AuditLog
 # Phase 3 models
-from app.models.project import Project, ProjectStatus, ProjectScope
+from app.models.project import Project, ProjectStatus, ProjectScope, ProjectType
 from app.models.scan import Scan, ScanStatus, ScanType
 from app.models.finding import Finding, Severity
+# Phase 9 models (must come after Project)
+from app.models.project_member import ProjectMember, ProjectRole
+from app.models.target import Target, TargetType, TargetStatus
 from app.models.brute_force_config import BruteForceConfig, BruteForceResult
 from app.models.generic_tool import GenericToolConfig, ToolExecution
 from app.models.plugin import Plugin, PluginExecution
@@ -19,6 +22,9 @@ from app.models.threat_intel import ThreatIntel, SeverityLevel
 from app.models.risk_score import RiskScore
 from app.models.compliance_mapping import ComplianceMapping, ComplianceFramework, ComplianceStatus
 from app.models.report import Report, ReportStatus
+# Phase 8 models
+from app.models.alert_rule import AlertRule, AlertChannel, AlertTrigger
+from app.models.notification import Notification, NotificationStatus
 
 __all__ = [
     # Base
@@ -50,9 +56,22 @@ __all__ = [
     "Project",
     "ProjectStatus",
     "ProjectScope",
+    "ProjectType",
     "Scan",
     "ScanStatus",
     "ScanType",
     "Finding",
     "Severity",
+    # Phase 9 models
+    "ProjectMember",
+    "ProjectRole",
+    "Target",
+    "TargetType",
+    "TargetStatus",
+    # Phase 8 models
+    "AlertRule",
+    "AlertChannel",
+    "AlertTrigger",
+    "Notification",
+    "NotificationStatus",
 ]
