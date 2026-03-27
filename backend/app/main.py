@@ -1,18 +1,24 @@
 """Main FastAPI application"""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from contextlib import asynccontextmanager
 import logging
 
 from app.core.config import settings
 from app.core.executor_types import TOOLS_BY_OPTION
 from app.core.openapi import setup_openapi
+from app.core.sentry_config import init_sentry
 from app.database import init_db
 from app.logging_config import logger
+from app.middleware.metrics_middleware import MetricsMiddleware
 from app.api.v1 import auth, tools
 from app.api.v1.router import api_router
 # Import all models so SQLAlchemy creates their tables
 import app.models  # noqa: F401
+
+
+init_sentry()
 
 
 @asynccontextmanager
@@ -39,6 +45,7 @@ app = FastAPI(
 
 setup_openapi(app)
 
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -73,6 +80,13 @@ async def root():
 async def health():
     """Health check"""
     return {"status": "ok"}
+
+
+@app.get("/metrics", tags=["Monitoring"], include_in_schema=False)
+async def metrics():
+    """Prometheus metrics endpoint"""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 if __name__ == "__main__":
