@@ -17,10 +17,14 @@ from app.database import SessionLocal
 
 # Paths that bypass all security checks (health, docs, auth)
 _OPEN_PATHS = {
+    "/",
     "/health",
     "/docs",
     "/openapi.json",
     "/redoc",
+    "/api/docs",
+    "/api/openapi.json",
+    "/api/redoc",
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/refresh",

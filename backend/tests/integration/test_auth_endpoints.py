@@ -8,7 +8,7 @@ class TestHealthEndpoint:
 
     def test_health_status_healthy(self, client):
         resp = client.get("/health")
-        assert resp.json()["status"] == "healthy"
+        assert resp.json()["status"] == "ok"
 
 
 class TestRootEndpoint:

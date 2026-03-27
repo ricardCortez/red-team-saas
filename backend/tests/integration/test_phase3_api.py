@@ -169,7 +169,7 @@ class TestBlock1Structure:
         assert log_action is not None
 
     def test_t1_5_router_registered(self, client):
-        resp = client.get("/openapi.json")
+        resp = client.get("/api/openapi.json")
         assert resp.status_code == 200
         paths = resp.json()["paths"]
         assert "/api/v1/projects/" in paths
@@ -177,7 +177,7 @@ class TestBlock1Structure:
         assert "/api/v1/results/" in paths
 
     def test_t1_6_swagger_accessible(self, client):
-        resp = client.get("/docs")
+        resp = client.get("/api/docs")
         assert resp.status_code == 200
 
 
@@ -939,7 +939,7 @@ class TestBlock9OpenAPI:
     """T9.1-T9.3 – OpenAPI spec completeness."""
 
     def test_t9_1_endpoints_in_spec(self, client):
-        spec = client.get("/openapi.json").json()
+        spec = client.get("/api/openapi.json").json()
         paths = spec["paths"]
         required = [
             "/api/v1/projects/",
@@ -950,7 +950,7 @@ class TestBlock9OpenAPI:
             assert ep in paths, f"Missing from OpenAPI: {ep}"
 
     def test_t9_2_response_schemas_defined(self, client):
-        spec = client.get("/openapi.json").json()
+        spec = client.get("/api/openapi.json").json()
         schemas = spec.get("components", {}).get("schemas", {})
         required = [
             "ProjectResponse", "ProjectCreate",
@@ -962,7 +962,7 @@ class TestBlock9OpenAPI:
             assert s in schemas, f"Missing schema: {s}"
 
     def test_t9_3_tags_present(self, client):
-        spec = client.get("/openapi.json").json()
+        spec = client.get("/api/openapi.json").json()
         tags_used = set()
         for path_item in spec["paths"].values():
             for op in path_item.values():

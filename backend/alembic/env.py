@@ -20,8 +20,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+
+def get_sqlalchemy_url() -> str:
+    """Return database URL from DATABASE_URL env var or fall back to alembic.ini."""
+    return os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+
+
 # Prefer DATABASE_URL from environment (docker-compose / .env) over alembic.ini
-database_url = os.getenv("DATABASE_URL")
+database_url = get_sqlalchemy_url()
 if database_url:
     config.set_main_option("sqlalchemy.url", database_url)
 
@@ -45,7 +51,7 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode (live connection)."""
     configuration = config.get_section(config.config_ini_section, {})
-    database_url_override = os.getenv("DATABASE_URL")
+    database_url_override = get_sqlalchemy_url()
     if database_url_override:
         configuration["sqlalchemy.url"] = database_url_override
 

@@ -6,6 +6,7 @@ import logging
 
 from app.core.config import settings
 from app.core.executor_types import TOOLS_BY_OPTION
+from app.core.openapi import setup_openapi
 from app.database import init_db
 from app.logging_config import logger
 from app.api.v1 import auth, tools
@@ -31,7 +32,12 @@ app = FastAPI(
     version=settings.PROJECT_VERSION,
     debug=settings.DEBUG,
     lifespan=lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
 )
+
+setup_openapi(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -46,7 +52,7 @@ app.include_router(tools.router, prefix=settings.API_V1_STR, tags=["tools"])
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
-@app.get("/")
+@app.get("/", tags=["Health"])
 async def root():
     """Root endpoint"""
     return {
@@ -55,13 +61,18 @@ async def root():
         "status": "ok",
         "architecture": settings.ARCHITECTURE_OPTION,
         "total_tools": TOOLS_BY_OPTION[settings.ARCHITECTURE_OPTION].get("total", 0),
+        "docs": {
+            "swagger_ui": "/api/docs",
+            "redoc": "/api/redoc",
+            "openapi_json": "/api/openapi.json",
+        },
     }
 
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 async def health():
     """Health check"""
-    return {"status": "healthy"}
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":
