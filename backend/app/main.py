@@ -14,6 +14,7 @@ from app.logging_config import logger
 from app.middleware.metrics_middleware import MetricsMiddleware
 from app.api.v1 import auth, tools
 from app.api.v1.router import api_router
+from app.api.v1.websocket_endpoints import router as ws_router
 # Import all models so SQLAlchemy creates their tables
 import app.models  # noqa: F401
 
@@ -28,8 +29,15 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
 
+    # Start WebSocket Redis broadcaster
+    from app.websocket.broadcaster import broadcaster
+    from app.websocket.manager import ws_manager
+    await broadcaster.start(settings.REDIS_URL, ws_manager.broadcast)
+    logger.info("WebSocket broadcaster started")
+
     yield
 
+    await broadcaster.stop()
     logger.info(f"Shutting down {settings.PROJECT_NAME}")
 
 
@@ -57,6 +65,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix=settings.API_V1_STR, tags=["auth"])
 app.include_router(tools.router, prefix=settings.API_V1_STR, tags=["tools"])
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(ws_router)  # WebSocket endpoints (no prefix, ws:// root)
 
 
 @app.get("/", tags=["Health"])
