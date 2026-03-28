@@ -33,6 +33,7 @@ env/
 *.swo
 *~
 .DS_Store
+.claude/
 
 # Environment
 .env
@@ -47,6 +48,12 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+
+# Test Reports and QA Results
+test_*.txt
+qa_results*/
+QA_REPORT.html
+CONSOLIDATED_QA_REPORT.txt
 
 # Poetry
 poetry.lock
