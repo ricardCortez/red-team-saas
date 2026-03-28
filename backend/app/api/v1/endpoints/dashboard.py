@@ -37,6 +37,46 @@ router = APIRouter()
 
 # ── Global ────────────────────────────────────────────────────────────────────
 
+@router.get("/dashboard/stats")
+def dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Aggregated stats for the frontend dashboard."""
+    from app.models.scan import Scan
+    from app.models.finding import Finding
+    from app.models.project import Project
+
+    total_projects = db.query(Project).count()
+    total_scans = db.query(Scan).count()
+    active_scans = db.query(Scan).filter(Scan.status == "running").count()
+    total_findings = db.query(Finding).count()
+
+    severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    for sev in severity_counts:
+        severity_counts[sev] = db.query(Finding).filter(Finding.severity == sev).count()
+
+    recent_scans = db.query(Scan).order_by(Scan.created_at.desc()).limit(5).all()
+    recent_findings = db.query(Finding).order_by(Finding.created_at.desc()).limit(5).all()
+
+    return {
+        "total_projects": total_projects,
+        "total_scans": total_scans,
+        "total_findings": total_findings,
+        "active_scans": active_scans,
+        "findings_by_severity": severity_counts,
+        "recent_scans": [
+            {"id": s.id, "name": s.name, "scan_type": s.scan_type.value if hasattr(s.scan_type, "value") else s.scan_type, "status": s.status.value if hasattr(s.status, "value") else s.status, "progress": s.progress or 0, "created_at": str(s.created_at)}
+            for s in recent_scans
+        ],
+        "recent_findings": [
+            {"id": f.id, "title": f.title, "severity": f.severity.value if hasattr(f.severity, "value") else f.severity, "status": f.status, "created_at": str(f.created_at)}
+            for f in recent_findings
+        ],
+        "compliance_score": 0,
+    }
+
+
 @router.get("/dashboard/summary", response_model=GlobalSummary)
 def global_summary(
     db: Session = Depends(get_db),

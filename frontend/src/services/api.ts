@@ -3,6 +3,7 @@ import axios from 'axios'
 const api = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
 })
 
 api.interceptors.request.use((config) => {
@@ -24,6 +25,7 @@ api.interceptors.response.use(
         try {
           const { data } = await axios.post('/api/v1/auth/refresh', null, {
             params: { refresh_token: refresh },
+            timeout: 8000,
           })
           localStorage.setItem('access_token', data.access_token)
           if (data.refresh_token) {
@@ -31,10 +33,13 @@ api.interceptors.response.use(
           }
           original.headers.Authorization = `Bearer ${data.access_token}`
           return api(original)
-        } catch {
-          localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
-          window.location.href = '/login'
+        } catch (refreshErr: any) {
+          // Only force logout if the refresh itself returned 401/403, not on network errors
+          if (refreshErr?.response?.status === 401 || refreshErr?.response?.status === 403) {
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('refresh_token')
+            window.location.href = '/login'
+          }
         }
       }
     }

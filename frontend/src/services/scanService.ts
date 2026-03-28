@@ -25,4 +25,8 @@ export const scanService = {
     const { data } = await api.post(`/scans/${id}/run`)
     return data
   },
+
+  async delete(id: number): Promise<void> {
+    await api.delete(`/scans/${id}`)
+  },
 }

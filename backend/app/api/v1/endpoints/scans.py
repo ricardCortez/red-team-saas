@@ -37,17 +37,24 @@ async def create_scan(
 ):
     scan = crud_scan.create(db, obj_in=scan_in, created_by=current_user.id)
     await log_action(db, user_id=current_user.id, action="scan.create", resource_id=scan.id)
-    # Queue Celery task
+    # Queue Celery task in a thread to avoid blocking the async event loop
+    import asyncio
+    def _queue_task():
+        try:
+            from app.tasks.scan_tasks import execute_scan
+            return execute_scan.delay(scan.id)
+        except Exception:
+            return None
     try:
-        from app.tasks.scan_tasks import execute_scan
-        task = execute_scan.delay(scan.id)
-        crud_scan.update(
-            db,
-            db_obj=scan,
-            obj_in={"celery_task_id": task.id, "status": "pending"},
+        loop = asyncio.get_event_loop()
+        task = await asyncio.wait_for(
+            loop.run_in_executor(None, _queue_task),
+            timeout=3.0,
         )
+        if task:
+            crud_scan.update(db, db_obj=scan, obj_in={"celery_task_id": task.id, "status": "pending"})
     except Exception:
-        pass  # Celery may not be running in dev; scan stays in pending state
+        pass  # Celery unavailable; scan stays pending
     return scan
 
 
@@ -99,6 +106,53 @@ async def cancel_scan(
             pass
     updated = crud_scan.update(db, db_obj=scan, obj_in={"status": "cancelled"})
     await log_action(db, user_id=current_user.id, action="scan.cancel", resource_id=scan_id)
+    return updated
+
+
+@router.delete("/{scan_id}", status_code=204)
+async def delete_scan(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "manager", "pentester"])),
+):
+    scan = crud_scan.get(db, id=scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    db.delete(scan)
+    db.commit()
+    await log_action(db, user_id=current_user.id, action="scan.delete", resource_id=scan_id)
+
+
+@router.post("/{scan_id}/run", response_model=ScanResponse)
+async def run_scan(
+    scan_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "manager", "pentester"])),
+):
+    """Manually trigger/re-trigger a pending scan."""
+    scan = crud_scan.get(db, id=scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    scan_status = scan.status.value if hasattr(scan.status, "value") else scan.status
+    if scan_status not in ("pending", "failed"):
+        raise HTTPException(status_code=400, detail=f"Cannot run scan in status: {scan_status}")
+    import asyncio
+    def _queue_run():
+        try:
+            from app.tasks.scan_tasks import execute_scan
+            return execute_scan.delay(scan.id)
+        except Exception:
+            return None
+    try:
+        loop = asyncio.get_event_loop()
+        task = await asyncio.wait_for(loop.run_in_executor(None, _queue_run), timeout=3.0)
+        if task:
+            updated = crud_scan.update(db, db_obj=scan, obj_in={"celery_task_id": task.id, "status": "pending"})
+        else:
+            updated = crud_scan.update(db, db_obj=scan, obj_in={"status": "pending"})
+    except Exception:
+        updated = crud_scan.update(db, db_obj=scan, obj_in={"status": "pending"})
+    await log_action(db, user_id=current_user.id, action="scan.run", resource_id=scan_id)
     return updated
 
 

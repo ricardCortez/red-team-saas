@@ -13,8 +13,8 @@ export const dashboardService = {
         api.get('/findings/'),
       ])
 
-      const scanList = scans.status === 'fulfilled' ? (Array.isArray(scans.value.data) ? scans.value.data : []) : []
-      const findingList = findings.status === 'fulfilled' ? (Array.isArray(findings.value.data) ? findings.value.data : []) : []
+      const scanList = scans.status === 'fulfilled' ? (Array.isArray(scans.value.data) ? scans.value.data : scans.value.data?.items ?? []) : []
+      const findingList = findings.status === 'fulfilled' ? (Array.isArray(findings.value.data) ? findings.value.data : findings.value.data?.items ?? []) : []
 
       return {
         total_projects: 0,

@@ -15,6 +15,34 @@ from app.core.threat_intel.correlator import ThreatCorrelator
 router = APIRouter()
 
 
+@router.get("/threat-intel/")
+def list_threat_intel(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all IOC entries as the main threat intel listing."""
+    query = db.query(IOC).order_by(IOC.created_at.desc())
+    total = query.count()
+    items = query.offset(skip).limit(limit).all()
+    return {
+        "items": [
+            {
+                "id": i.id,
+                "indicator": i.value,
+                "indicator_type": i.ioc_type.value if hasattr(i.ioc_type, "value") else i.ioc_type,
+                "severity": i.threat_level.value if hasattr(i.threat_level, "value") else i.threat_level,
+                "source": i.source or "manual",
+                "description": i.description or "",
+                "created_at": str(i.created_at),
+            }
+            for i in items
+        ],
+        "total": total,
+    }
+
+
 # ── CVE ───────────────────────────────────────────────────────────────────────
 
 @router.get("/threat-intel/cve/{cve_id}")

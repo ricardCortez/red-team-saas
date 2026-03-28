@@ -56,9 +56,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const user = await authService.me()
       set({ user, isAuthenticated: true })
-    } catch {
-      set({ user: null, isAuthenticated: false })
-      authService.logout()
+    } catch (err: any) {
+      // Only clear auth on explicit 401 — not on network errors or timeouts
+      if (err?.response?.status === 401) {
+        set({ user: null, isAuthenticated: false })
+        authService.logout()
+      }
     }
   },
 

@@ -6,41 +6,57 @@ interface UseWebSocketOptions {
   url?: string
   onMessage?: (msg: WSMessage) => void
   reconnectInterval?: number
+  maxRetries?: number
 }
 
 export function useWebSocket(options?: UseWebSocketOptions) {
   const {
     url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`,
     onMessage,
-    reconnectInterval = 3000,
+    reconnectInterval = 5000,
+    maxRetries = 3,
   } = options ?? {}
 
   const wsRef = useRef<WebSocket | null>(null)
   const [connected, setConnected] = useState(false)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const retriesRef = useRef(0)
+  const stoppedRef = useRef(false)
   const addNotification = useNotificationStore((s) => s.addNotification)
+  const onMessageRef = useRef(onMessage)
+  onMessageRef.current = onMessage
 
   const connect = useCallback(() => {
+    if (stoppedRef.current) return
     const token = localStorage.getItem('access_token')
     if (!token) return
+    if (retriesRef.current >= maxRetries) return
 
-    const wsUrl = `${url}?token=${token}`
-    const ws = new WebSocket(wsUrl)
+    // Close previous connection if any
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.onclose = null
+      wsRef.current.onerror = null
+      wsRef.current.close()
+    }
+
+    const ws = new WebSocket(`${url}?token=${token}`)
     wsRef.current = ws
 
-    ws.onopen = () => setConnected(true)
+    ws.onopen = () => {
+      retriesRef.current = 0
+      setConnected(true)
+    }
 
     ws.onmessage = (event) => {
       try {
         const msg: WSMessage = JSON.parse(event.data)
-        onMessage?.(msg)
-
+        onMessageRef.current?.(msg)
         if (msg.type === 'notification' || msg.type === 'alert') {
           addNotification({
             id: Date.now(),
             title: (msg.payload.title as string) || msg.type,
             message: (msg.payload.message as string) || '',
-            severity: (msg.payload.severity as WSMessage['payload']['severity'] & string) || 'info',
+            severity: (msg.payload.severity as string) || 'info',
             read: false,
             created_at: msg.timestamp,
           } as import('../types').Notification)
@@ -48,19 +64,44 @@ export function useWebSocket(options?: UseWebSocketOptions) {
       } catch { /* ignore malformed */ }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (e) => {
       setConnected(false)
-      reconnectTimer.current = setTimeout(connect, reconnectInterval)
+      if (stoppedRef.current) return
+      // Don't reconnect on auth failure
+      if (e.code === 4001) return
+      retriesRef.current += 1
+      if (retriesRef.current < maxRetries) {
+        reconnectTimer.current = setTimeout(connect, reconnectInterval * retriesRef.current)
+      }
     }
 
-    ws.onerror = () => ws.close()
-  }, [url, onMessage, reconnectInterval, addNotification])
+    ws.onerror = () => {
+      ws.onclose = null
+      ws.close()
+      setConnected(false)
+      if (stoppedRef.current) return
+      retriesRef.current += 1
+      if (retriesRef.current < maxRetries) {
+        reconnectTimer.current = setTimeout(connect, reconnectInterval * retriesRef.current)
+      }
+    }
+  }, [url, maxRetries, reconnectInterval, addNotification])
 
   useEffect(() => {
-    connect()
+    stoppedRef.current = false
+    retriesRef.current = 0
+    // Delay initial connect to let the page settle
+    reconnectTimer.current = setTimeout(connect, 1000)
+
     return () => {
+      stoppedRef.current = true
       clearTimeout(reconnectTimer.current)
-      wsRef.current?.close()
+      if (wsRef.current) {
+        wsRef.current.onclose = null
+        wsRef.current.onerror = null
+        wsRef.current.close()
+        wsRef.current = null
+      }
     }
   }, [connect])
 
