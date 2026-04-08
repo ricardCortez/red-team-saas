@@ -20,6 +20,9 @@ async def websocket_endpoint(
     Once authenticated, they receive real-time events and can
     subscribe to scan progress updates.
     """
+    # Accept first — Starlette requires accept() before close(), otherwise returns HTTP 403
+    await websocket.accept()
+
     # Authenticate
     payload = JWTHandler.verify_token(token)
     if not payload:
@@ -67,6 +70,9 @@ async def websocket_scan_endpoint(
 
     Auto-subscribes the user to the given scan_id events.
     """
+    # Accept first — Starlette requires accept() before close(), otherwise returns HTTP 403
+    await websocket.accept()
+
     payload = JWTHandler.verify_token(token)
     if not payload:
         await websocket.close(code=4001, reason="Invalid or expired token")

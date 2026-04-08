@@ -24,7 +24,7 @@ class ConnectionManager:
         return sum(len(conns) for conns in self._connections.values())
 
     async def connect(self, websocket: WebSocket, user_id: int) -> None:
-        await websocket.accept()
+        # accept() is called by the endpoint before connect() to allow sending close frames on auth failure
         async with self._lock:
             if user_id not in self._connections:
                 self._connections[user_id] = set()

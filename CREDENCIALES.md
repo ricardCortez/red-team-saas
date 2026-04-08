@@ -68,4 +68,7 @@
 
 ---
 
+  - GoPhish is running at https://localhost:3333 · credentials: admin / RedTeam@2024!                                                                         
+  - GoPhish API key: 8e1807cff895c10ea4a9f79189d1645071e033105bc3545435d21c2c79d01717 
+
 > **IMPORTANTE:** Este archivo contiene credenciales sensibles. No subir a repositorios públicos.
