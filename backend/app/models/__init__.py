@@ -82,6 +82,13 @@ from app.models.security import (
     SecurityAuditLog,
     TokenBucket,
 )
+# Phishing
+from app.models.phishing import (
+    PhishingCampaign,
+    PhishingCampaignStatus,
+    PhishingTarget,
+    PhishingTargetStatus,
+)
 
 __all__ = [
     # Base
@@ -187,4 +194,9 @@ __all__ = [
     "OAuthToken",
     "SecurityAuditLog",
     "TokenBucket",
+    # Phishing
+    "PhishingCampaign",
+    "PhishingCampaignStatus",
+    "PhishingTarget",
+    "PhishingTargetStatus",
 ]
