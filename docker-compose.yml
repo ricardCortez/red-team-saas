@@ -132,11 +132,28 @@ services:
       timeout: 5s
       retries: 5
 
+  gophish:
+    image: gophish/gophish:latest
+    container_name: redteam-gophish
+    ports:
+      - "3333:3333"
+      - "8080:8080"
+    volumes:
+      - gophish_data:/opt/gophish
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3333"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 volumes:
   postgres_data:
   redis_data:
   prometheus_data:
   grafana_data:
+  gophish_data:
 
 networks:
   default:
