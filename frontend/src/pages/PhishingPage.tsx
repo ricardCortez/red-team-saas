@@ -57,18 +57,21 @@ export default function PhishingPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const [createForm, setCreateForm] = useState({
+
+  const defaultCreateForm = () => ({
     project_id: 0,
     name: '',
     description: '',
     gophish_url: 'http://localhost:3333',
-    gophish_api_key: '',
-    template_name: '',
-    landing_page_name: '',
-    smtp_profile_name: '',
-    target_group_name: '',
-    phishing_url: '',
+    gophish_api_key: localStorage.getItem('gophish_api_key') ?? '',
+    template_name: 'Microsoft 365 - Account Verification',
+    landing_page_name: 'Microsoft Login Page',
+    smtp_profile_name: 'Test SMTP',
+    target_group_name: 'Test Group',
+    phishing_url: 'http://localhost:8080',
   })
+
+  const [createForm, setCreateForm] = useState(defaultCreateForm)
 
   const [selectedCampaign, setSelectedCampaign] = useState<PhishingCampaign | null>(null)
   const [detailTab, setDetailTab] = useState<DetailTab>('targets')
@@ -94,6 +97,9 @@ export default function PhishingPage() {
       setProjects(items)
       if (items.length > 0) setCreateForm((f) => ({ ...f, project_id: items[0].id }))
     }).catch(() => {})
+    // Refresh API key from localStorage on mount (in case it was saved in another tab/session)
+    const savedKey = localStorage.getItem('gophish_api_key')
+    if (savedKey) setCreateForm((f) => ({ ...f, gophish_api_key: savedKey }))
   }, [])
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -102,6 +108,10 @@ export default function PhishingPage() {
     setSubmitting(true)
     setSubmitError('')
     try {
+      // Persist API key for next time
+      if (createForm.gophish_api_key) {
+        localStorage.setItem('gophish_api_key', createForm.gophish_api_key)
+      }
       await phishingService.create(createForm as unknown as Record<string, unknown>)
       setShowCreate(false)
       resetCreateForm()
@@ -116,15 +126,7 @@ export default function PhishingPage() {
   }
 
   const resetCreateForm = () => {
-    setCreateForm({
-      project_id: projects[0]?.id || 0,
-      name: '', description: '',
-      gophish_url: 'http://localhost:3333',
-      gophish_api_key: '',
-      template_name: '', landing_page_name: '',
-      smtp_profile_name: '', target_group_name: '',
-      phishing_url: '',
-    })
+    setCreateForm({ ...defaultCreateForm(), project_id: projects[0]?.id || 0 })
     setSubmitError('')
   }
 
@@ -442,7 +444,12 @@ export default function PhishingPage() {
                   className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50" />
               </div>
               <div>
-                <label className="block text-xs text-[var(--color-text-secondary)] mb-1">API Key</label>
+                <label className="block text-xs text-[var(--color-text-secondary)] mb-1">
+                  API Key
+                  {localStorage.getItem('gophish_api_key') && (
+                    <span className="ml-2 text-green-400 text-xs">(auto-cargada)</span>
+                  )}
+                </label>
                 <input required type="password" value={createForm.gophish_api_key} onChange={(e) => setCreateForm({ ...createForm, gophish_api_key: e.target.value })}
                   placeholder="GoPhish API key"
                   className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50" />

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Play, ExternalLink } from 'lucide-react';
 import type { ToolDefinition } from '../../data/toolDefinitions';
+import api from '../../services/api';
 
 interface Project {
   id: number;
@@ -11,8 +12,6 @@ interface ToolExecuteModalProps {
   tool: ToolDefinition | null;
   onClose: () => void;
 }
-
-const API_BASE = '/api/v1';
 
 export function ToolExecuteModal({ tool, onClose }: ToolExecuteModalProps) {
   const [params, setParams] = useState<Record<string, string>>({});
@@ -27,12 +26,9 @@ export function ToolExecuteModal({ tool, onClose }: ToolExecuteModalProps) {
     setParams({});
     setExecutionId(null);
     setError(null);
-    fetch(`${API_BASE}/projects/`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        const list: Project[] = Array.isArray(data) ? data : (data.items ?? []);
+    api.get('/projects/')
+      .then((r) => {
+        const list: Project[] = Array.isArray(r.data) ? r.data : (r.data.items ?? []);
         setProjects(list);
         if (list.length > 0) setSelectedProject(String(list[0].id));
       })
@@ -49,21 +45,15 @@ export function ToolExecuteModal({ tool, onClose }: ToolExecuteModalProps) {
     setLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token') ?? '';
-      const res = await fetch(`${API_BASE}/executions/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          tool_name: tool.id,
-          parameters: params,
-          project_id: Number(selectedProject),
-        }),
+      const res = await api.post('/executions/', {
+        tool_name: tool.id,
+        parameters: params,
+        project_id: Number(selectedProject),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? 'Execution failed');
-      setExecutionId(data.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setExecutionId(res.data.id);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      setError(e?.response?.data?.detail ?? 'Execution failed');
     } finally {
       setLoading(false);
     }

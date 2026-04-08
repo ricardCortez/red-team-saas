@@ -1,6 +1,11 @@
-import { useState } from 'react'
-import { Wifi, WifiOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Wifi, WifiOff, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react'
 import { aiService, type AIConfig, type AIConfigUpdate, type AIProviderMeta, type AITestResult } from '../../services/aiService'
+
+const INSTALL_LINKS: Partial<Record<string, { label: string; url: string }>> = {
+  ollama: { label: 'Install Ollama', url: 'https://ollama.com/download' },
+  lmstudio: { label: 'Download LM Studio', url: 'https://lmstudio.ai/' },
+}
 
 interface AIProviderCardProps {
   meta: AIProviderMeta
@@ -21,7 +26,7 @@ export default function AIProviderCard({ meta, config, onSaved }: AIProviderCard
 
   const isLocal = meta.type === 'local'
 
-  const handleTest = async () => {
+  const handleTest = useCallback(async () => {
     setTesting(true)
     setTestResult(null)
     try {
@@ -33,7 +38,12 @@ export default function AIProviderCard({ meta, config, onSaved }: AIProviderCard
     } finally {
       setTesting(false)
     }
-  }
+  }, [meta.provider])
+
+  // Auto-test local providers on mount
+  useEffect(() => {
+    if (isLocal) handleTest()
+  }, [isLocal, handleTest])
 
   const handleSave = async () => {
     setSaving(true)
@@ -150,7 +160,21 @@ export default function AIProviderCard({ meta, config, onSaved }: AIProviderCard
               border: `1px solid ${testResult.available ? 'var(--neon-green)' : 'var(--neon-red)'}`,
               color: statusColor,
             }}>
-              {testResult.available ? `✓ Connected — ${testResult.models.length} model(s) available` : `✗ ${testResult.error}`}
+              {testResult.available
+                ? `✓ Connected — ${testResult.models.length} model(s) available`
+                : `✗ ${testResult.error ?? 'Not reachable'}`}
+              {!testResult.available && isLocal && INSTALL_LINKS[meta.provider] && (
+                <a
+                  href={INSTALL_LINKS[meta.provider]!.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 mt-2 underline"
+                  style={{ color: 'var(--neon-blue)' }}
+                >
+                  <Download className="w-3 h-3" />
+                  {INSTALL_LINKS[meta.provider]!.label}
+                </a>
+              )}
             </div>
           )}
 
