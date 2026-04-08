@@ -2,6 +2,10 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Common/Sidebar'
 import Navbar from '../components/Common/Navbar'
 import { useWebSocket } from '../hooks/useWebSocket'
+import AIChatButton from '../components/AI/AIChatButton'
+import AIChat from '../components/AI/AIChat'
+import { useAIStore } from '../store/aiStore'
+import { useEffect } from 'react'
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
@@ -15,14 +19,19 @@ const pageTitles: Record<string, string> = {
   '/threat-intel': 'Threat Intelligence',
   '/notifications': 'Notifications',
   '/settings': 'Settings',
+  '/phishing': 'Phishing',
 }
 
 export default function MainLayout() {
   const location = useLocation()
   const title = pageTitles[location.pathname] || 'Red Team SaaS'
+  const { setPageContext } = useAIStore()
 
-  // Connect WebSocket for real-time updates
   useWebSocket()
+
+  useEffect(() => {
+    setPageContext(title)
+  }, [title, setPageContext])
 
   return (
     <div className="flex min-h-screen">
@@ -33,6 +42,8 @@ export default function MainLayout() {
           <Outlet />
         </main>
       </div>
+      <AIChatButton />
+      <AIChat />
     </div>
   )
 }
