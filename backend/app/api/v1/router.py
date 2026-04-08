@@ -12,6 +12,7 @@ from app.api.v1.endpoints import compliance
 from app.api.v1.endpoints import integrations
 from app.api.v1.endpoints import security
 from app.api.v1.endpoints import phishing as phishing_endpoints
+from app.api.v1.endpoints import ai as ai_endpoints
 
 api_router = APIRouter()
 
@@ -43,3 +44,5 @@ api_router.include_router(integrations.router, prefix="", tags=["Integrations"])
 api_router.include_router(security.router, prefix="", tags=["Security"])
 # Task 8
 api_router.include_router(phishing_endpoints.router, prefix="/phishing/campaigns", tags=["Phishing"])
+# AI integration
+api_router.include_router(ai_endpoints.router, tags=["AI"])
