@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Scan, Bug, FileText, FolderOpen, Crosshair,
-  Shield, Bell, Settings, Wrench, Globe, LogOut,
+  Shield, Bell, Settings, Wrench, Globe, LogOut, Mail,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { cn } from '../../utils/cn'
@@ -11,6 +11,7 @@ const navItems = [
   { to: '/projects', icon: FolderOpen, label: 'Projects' },
   { to: '/targets', icon: Crosshair, label: 'Targets' },
   { to: '/scans', icon: Scan, label: 'Scans' },
+  { to: '/phishing', icon: Mail, label: 'Phishing' },
   { to: '/findings', icon: Bug, label: 'Findings' },
   { to: '/reports', icon: FileText, label: 'Reports' },
   { to: '/tools', icon: Wrench, label: 'Tools' },

@@ -15,6 +15,7 @@ import CompliancePage from './pages/CompliancePage'
 import ThreatIntelPage from './pages/ThreatIntelPage'
 import NotificationsPage from './pages/NotificationsPage'
 import SettingsPage from './pages/SettingsPage'
+import PhishingPage from './pages/PhishingPage'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="targets" element={<TargetsPage />} />
           <Route path="scans" element={<ScansPage />} />
+          <Route path="phishing" element={<PhishingPage />} />
           <Route path="findings" element={<FindingsPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="tools" element={<ToolsPage />} />
