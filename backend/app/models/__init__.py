@@ -89,6 +89,7 @@ from app.models.phishing import (
     PhishingTarget,
     PhishingTargetStatus,
 )
+from app.models.ai_config import UserAIConfig, AIProviderEnum  # noqa: F401
 
 __all__ = [
     # Base
@@ -199,4 +200,7 @@ __all__ = [
     "PhishingCampaignStatus",
     "PhishingTarget",
     "PhishingTargetStatus",
+    # AI config
+    "UserAIConfig",
+    "AIProviderEnum",
 ]
