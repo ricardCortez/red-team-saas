@@ -1,75 +1,105 @@
-import { useEffect, useState } from 'react'
-import { Wrench, Play, ChevronDown, ChevronUp } from 'lucide-react'
-import { toolService } from '../services/toolService'
-import type { Tool } from '../types'
-import Card from '../components/Common/Card'
-import Loading from '../components/Common/Loading'
-import EmptyState from '../components/Common/EmptyState'
+import { useState, useMemo } from 'react';
+import { Search } from 'lucide-react';
+import { TOOL_DEFINITIONS, TOOL_CATEGORIES } from '../data/toolDefinitions';
+import type { ToolDefinition, ToolCategory } from '../data/toolDefinitions';
+import { ToolCard } from '../components/Tools/ToolCard';
+import { ToolExecuteModal } from '../components/Tools/ToolExecuteModal';
+
+// Tools that are actually installed/available on the system
+const AVAILABLE_TOOLS = new Set([
+  'nmap', 'nikto', 'gobuster', 'hydra', 'john', 'medusa', 'cewl',
+  'wpscan', 'theharvester', 'whois', 'sqlmap', 'gophish',
+]);
 
 export default function ToolsPage() {
-  const [tools, setTools] = useState<Tool[]>([])
-  const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [activeCategory, setActiveCategory] = useState<ToolCategory>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTool, setSelectedTool] = useState<ToolDefinition | null>(null);
 
-  useEffect(() => {
-    toolService.listAvailable().then(setTools).catch(() => {}).finally(() => setLoading(false))
-  }, [])
-
-  if (loading) return <Loading text="Loading tools..." />
-
-  const categories = [...new Set(tools.map((t) => t.category))]
+  const filteredTools = useMemo(() => {
+    return TOOL_DEFINITIONS.filter((tool) => {
+      const matchesCategory = activeCategory === 'All' || tool.category === activeCategory;
+      const matchesSearch =
+        searchQuery === '' ||
+        tool.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tool.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        tool.category.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
+  }, [activeCategory, searchQuery]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-white">Security Tools</h2>
-        <p className="text-sm text-[var(--color-text-secondary)]">{tools.length} tools available</p>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-mono font-bold text-[var(--color-neon-green)]">
+            Tools Catalog
+          </h1>
+          <p className="text-xs text-gray-400 mt-1">
+            {TOOL_DEFINITIONS.length} tools available ·{' '}
+            {TOOL_DEFINITIONS.filter((t) => AVAILABLE_TOOLS.has(t.id)).length} installed
+          </p>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search tools..."
+            className="pl-9 pr-4 py-2 bg-black/60 border border-white/20 rounded text-sm text-white placeholder-gray-600 focus:border-[var(--color-neon-green)] focus:outline-none w-56"
+          />
+        </div>
       </div>
 
-      {tools.length === 0 ? (
-        <EmptyState icon={<Wrench className="w-12 h-12" />} title="No tools configured" description="Tools will appear here once configured by admin." />
+      {/* Category Tabs */}
+      <div className="flex flex-wrap gap-2">
+        {TOOL_CATEGORIES.map((cat) => {
+          const count = cat === 'All'
+            ? TOOL_DEFINITIONS.length
+            : TOOL_DEFINITIONS.filter((t) => t.category === cat).length;
+          return (
+            <button
+              key={cat}
+              onClick={() => setActiveCategory(cat)}
+              className={`px-3 py-1.5 text-xs font-mono rounded border transition-all duration-150 ${
+                activeCategory === cat
+                  ? 'border-[var(--color-neon-green)] text-[var(--color-neon-green)] bg-[var(--color-neon-green)]/10'
+                  : 'border-white/20 text-gray-400 hover:border-white/40 hover:text-white'
+              }`}
+            >
+              {cat} <span className="opacity-60">({count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tool Grid */}
+      {filteredTools.length === 0 ? (
+        <div className="text-center py-16 text-gray-500 font-mono text-sm">
+          No tools match "{searchQuery}"
+        </div>
       ) : (
-        categories.map((cat) => (
-          <Card key={cat} title={cat || 'General'}>
-            <div className="divide-y divide-[var(--color-border)] -mt-2">
-              {tools.filter((t) => t.category === cat).map((tool) => (
-                <div key={tool.name} className="py-3">
-                  <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(expanded === tool.name ? null : tool.name)}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${tool.available ? 'bg-green-400' : 'bg-gray-500'}`} />
-                      <div>
-                        <p className="text-white font-medium">{tool.name}</p>
-                        <p className="text-xs text-[var(--color-text-secondary)]">{tool.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {tool.available && (
-                        <button className="p-1.5 text-green-400 hover:bg-green-400/10 rounded" title="Execute" onClick={(e) => { e.stopPropagation() }}>
-                          <Play className="w-4 h-4" />
-                        </button>
-                      )}
-                      {expanded === tool.name ? <ChevronUp className="w-4 h-4 text-[var(--color-text-secondary)]" /> : <ChevronDown className="w-4 h-4 text-[var(--color-text-secondary)]" />}
-                    </div>
-                  </div>
-                  {expanded === tool.name && tool.parameters && (
-                    <div className="mt-3 ml-5 p-3 bg-[var(--color-bg-tertiary)]/50 rounded-lg text-xs">
-                      <p className="text-[var(--color-text-secondary)] font-medium mb-2">Parameters:</p>
-                      {tool.parameters.map((p) => (
-                        <div key={p.name} className="flex items-center gap-2 mb-1">
-                          <span className="text-indigo-400 font-mono">{p.name}</span>
-                          <span className="text-[var(--color-text-secondary)]">({p.type})</span>
-                          {p.required && <span className="text-red-400">*</span>}
-                          <span className="text-[var(--color-text-secondary)]"> - {p.description}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredTools.map((tool) => (
+            <ToolCard
+              key={tool.id}
+              tool={tool}
+              isAvailable={AVAILABLE_TOOLS.has(tool.id)}
+              onExecute={setSelectedTool}
+            />
+          ))}
+        </div>
       )}
+
+      {/* Execute Modal */}
+      <ToolExecuteModal
+        tool={selectedTool}
+        onClose={() => setSelectedTool(null)}
+      />
     </div>
-  )
+  );
 }
