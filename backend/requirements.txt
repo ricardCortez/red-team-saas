@@ -32,3 +32,7 @@ openapi-python-client>=0.13.0
 prometheus-client>=0.17.0
 python-json-logger>=2.0.7
 sentry-sdk[fastapi]>=1.39.2
+# AI providers
+openai>=1.35.0
+anthropic>=0.28.0
+google-generativeai>=0.7.0
