@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { FileText, Download, Plus } from 'lucide-react'
 import { reportService } from '../services/reportService'
-import type { Report } from '../types'
+import api from '../services/api'
+import type { Report, Project } from '../types'
 import Card from '../components/Common/Card'
 import Badge from '../components/Common/Badge'
 import Loading from '../components/Common/Loading'
@@ -11,19 +12,28 @@ import { formatDate } from '../utils/cn'
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showGenerate, setShowGenerate] = useState(false)
-  const [form, setForm] = useState({ name: '', report_type: 'executive', format: 'pdf', project_id: 1 })
+  const [form, setForm] = useState({ title: '', report_type: 'executive', report_format: 'pdf', project_id: 0 })
 
   const load = () => {
     setLoading(true)
     reportService.list().then(setReports).catch(() => {}).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    api.get('/projects/').then((r) => {
+      const items: Project[] = Array.isArray(r.data) ? r.data : r.data.items ?? []
+      setProjects(items)
+      if (items.length > 0) setForm((f) => ({ ...f, project_id: items[0].id }))
+    }).catch(() => {})
+  }, [])
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!form.project_id) return
     await reportService.generate(form)
     setShowGenerate(false)
     load()
@@ -34,7 +44,7 @@ export default function ReportsPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${report.name}.${report.format}`
+    a.download = `${report.title}.${report.report_format}`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -62,13 +72,13 @@ export default function ReportsPage() {
                 <div className="flex items-center gap-4">
                   <div className="p-2 bg-indigo-500/10 rounded-lg"><FileText className="w-5 h-5 text-indigo-400" /></div>
                   <div>
-                    <p className="text-white font-medium">{r.name}</p>
-                    <p className="text-xs text-[var(--color-text-secondary)]">{r.report_type} &middot; {r.format.toUpperCase()} &middot; {formatDate(r.created_at)}</p>
+                    <p className="text-white font-medium">{r.title}</p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{r.report_type} &middot; {r.report_format.toUpperCase()} &middot; {formatDate(r.created_at)}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <Badge text={r.status} variant="status" />
-                  {r.status === 'completed' && (
+                  {r.status === 'ready' && r.file_path && (
                     <button onClick={() => handleDownload(r)} className="p-2 text-indigo-400 hover:bg-indigo-400/10 rounded-lg">
                       <Download className="w-4 h-4" />
                     </button>
@@ -83,9 +93,18 @@ export default function ReportsPage() {
       <Modal open={showGenerate} onClose={() => setShowGenerate(false)} title="Generate Report">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div>
-            <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Report Name</label>
-            <input type="text" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Report Title</label>
+            <input type="text" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
               className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+          </div>
+          <div>
+            <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Project</label>
+            <select value={form.project_id} onChange={(e) => setForm({ ...form, project_id: Number(e.target.value) })}
+              className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none">
+              {projects.length === 0
+                ? <option value={0}>No projects available</option>
+                : projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -95,16 +114,14 @@ export default function ReportsPage() {
                 <option value="executive">Executive Summary</option>
                 <option value="technical">Technical Report</option>
                 <option value="compliance">Compliance Report</option>
-                <option value="findings">Findings Report</option>
               </select>
             </div>
             <div>
               <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Format</label>
-              <select value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value })}
+              <select value={form.report_format} onChange={(e) => setForm({ ...form, report_format: e.target.value })}
                 className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white">
                 <option value="pdf">PDF</option>
                 <option value="html">HTML</option>
-                <option value="xlsx">Excel</option>
               </select>
             </div>
           </div>

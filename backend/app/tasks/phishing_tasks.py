@@ -75,10 +75,12 @@ def sync_campaign_stats(self, campaign_id: int):
         return {"status": "ok", "campaign_id": campaign_id, "stats": stats}
 
     except GoPhishError as exc:
+        # Transient GoPhish errors (network, 5xx) → retry
         logger.error("sync_campaign_stats: GoPhish error for campaign %s: %s", campaign_id, exc)
         raise self.retry(exc=exc)
     except Exception as exc:
+        # Non-transient errors (missing model, programming error) → fail fast, do not retry
         logger.exception("sync_campaign_stats: unexpected error for campaign %s: %s", campaign_id, exc)
-        raise self.retry(exc=exc)
+        raise
     finally:
         db.close()

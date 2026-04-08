@@ -218,8 +218,8 @@ export default function ScansPage() {
                     <tr key={s.id} className="hover:bg-[var(--color-bg-tertiary)]/30">
                       <td className="py-3 text-white font-medium">{s.name || `Scan #${s.id}`}</td>
                       <td className="py-3 text-[var(--color-text-secondary)]">{s.scan_type}</td>
-                      <td className="py-3 text-[var(--color-text-secondary)] font-mono text-xs">{(s as any).target || '-'}</td>
-                      <td className="py-3 text-[var(--color-text-secondary)] text-xs">{(s as any).tools?.join(', ') || s.tool_name || '-'}</td>
+                      <td className="py-3 text-[var(--color-text-secondary)] font-mono text-xs">{s.target || '-'}</td>
+                      <td className="py-3 text-[var(--color-text-secondary)] text-xs">{Array.isArray(s.tools) && s.tools.length > 0 ? s.tools.join(', ') : '-'}</td>
                       <td className="py-3"><Badge text={s.status} variant="status" /></td>
                       <td className="py-3">
                         <div className="flex items-center gap-2">

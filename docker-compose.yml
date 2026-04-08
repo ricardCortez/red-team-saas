@@ -52,30 +52,12 @@ services:
       redis:
         condition: service_healthy
 
-  celery:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: redteam-celery
-    command: celery -A app.workers.celery_app worker --loglevel=info
-    environment:
-      - DATABASE_URL=postgresql://redteam:password@postgres:5432/redteam_db
-      - REDIS_URL=redis://redis:6379/0
-      - DEBUG=True
-    volumes:
-      - ./backend:/app
-      - ./logs:/app/logs
-    depends_on:
-      - postgres
-      - redis
-      - api
-
   celery_worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: redteam-celery-worker
-    command: celery -A app.tasks.celery_app worker --loglevel=info -Q tool_execution,celery --concurrency=4
+    command: celery -A app.tasks.celery_app worker --loglevel=info -Q tool_execution,notifications,analytics,reports,celery --concurrency=4
     environment:
       - DATABASE_URL=postgresql://redteam:password@postgres:5432/redteam_db
       - REDIS_URL=redis://redis:6379/0

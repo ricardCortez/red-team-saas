@@ -28,6 +28,10 @@ from app.tasks.report_tasks import generate_report
 
 router = APIRouter()
 
+# NOTE: Static paths (/templates, /v2, /schedules) MUST be registered before
+# the dynamic /{report_id: int} routes so FastAPI does not try to coerce
+# "templates", "v2", or "schedules" into an integer and return 422.
+
 
 # ── Create ─────────────────────────────────────────────────────────────────────
 
@@ -91,76 +95,8 @@ async def list_reports(
     return result
 
 
-# ── Detail ─────────────────────────────────────────────────────────────────────
-
-@router.get("/{report_id}", response_model=ReportResponse)
-async def get_report(
-    report_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    report = crud_report.get(db, report_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-    if report.created_by != current_user.id and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    return report
-
-
-# ── Download ───────────────────────────────────────────────────────────────────
-
-@router.get("/{report_id}/download")
-async def download_report(
-    report_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    report = crud_report.get(db, report_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-    if report.created_by != current_user.id and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    if report.status != ReportStatus.ready:
-        raise HTTPException(status_code=400, detail=f"Report not ready. Status: {report.status.value}")
-    if not report.file_path or not os.path.exists(report.file_path):
-        raise HTTPException(status_code=404, detail="Report file not found on disk")
-
-    media_type = "application/pdf" if report.report_format == ReportFormat.pdf else "text/html"
-    ext = "pdf" if report.report_format == ReportFormat.pdf else "html"
-    filename = f"{report.title.replace(' ', '_')}_{report.id}.{ext}"
-
-    await log_action(
-        db,
-        user_id=current_user.id,
-        action="report.download",
-        resource_id=report_id,
-        details={"filename": filename},
-    )
-    return FileResponse(path=report.file_path, media_type=media_type, filename=filename)
-
-
-# ── Delete ─────────────────────────────────────────────────────────────────────
-
-@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_report(
-    report_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    report = crud_report.get(db, report_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-    if report.created_by != current_user.id and not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Forbidden")
-
-    if report.file_path and os.path.exists(report.file_path):
-        os.remove(report.file_path)
-
-    crud_report.delete(db, report=report)
-
-
 # ══════════════════════════════════════════════════════════════════════════════
-# Phase 14 — Professional Reports (multi-format, signatures, S3, scheduling)
+# Phase 14 — Static routes (must come before /{report_id})
 # ══════════════════════════════════════════════════════════════════════════════
 
 # ── Templates ─────────────────────────────────────────────────────────────────
@@ -238,6 +174,107 @@ async def list_reports_v2(
     result["items"] = [ReportV2Response.model_validate(r) for r in result["items"]]
     return result
 
+
+# ── Schedules ──────────────────────────────────────────────────────────────────
+
+@router.post("/schedules", response_model=ReportScheduleResponse, status_code=status.HTTP_201_CREATED, tags=["Report Schedules"])
+async def create_schedule(
+    payload: ReportScheduleCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role(["admin", "manager"])),
+):
+    """Create a cron-based report generation schedule (Phase 14)."""
+    data = payload.model_dump()
+    data["created_by"] = current_user.id
+    return crud_report_v2.create_schedule(db, data)
+
+
+@router.get("/schedules", response_model=List[ReportScheduleResponse], tags=["Report Schedules"])
+async def list_schedules(
+    project_id: Optional[int] = Query(None),
+    enabled_only: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List report schedules (Phase 14)."""
+    return crud_report_v2.list_schedules(db, project_id=project_id, enabled_only=enabled_only)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 6 — Dynamic /{report_id} routes (must come after all static routes)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Detail ─────────────────────────────────────────────────────────────────────
+
+@router.get("/{report_id}", response_model=ReportResponse)
+async def get_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    report = crud_report.get(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.created_by != current_user.id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return report
+
+
+# ── Download ───────────────────────────────────────────────────────────────────
+
+@router.get("/{report_id}/download")
+async def download_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    report = crud_report.get(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.created_by != current_user.id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if report.status != ReportStatus.ready:
+        raise HTTPException(status_code=400, detail=f"Report not ready. Status: {report.status.value}")
+    if not report.file_path or not os.path.exists(report.file_path):
+        raise HTTPException(status_code=404, detail="Report file not found on disk")
+
+    media_type = "application/pdf" if report.report_format == ReportFormat.pdf else "text/html"
+    ext = "pdf" if report.report_format == ReportFormat.pdf else "html"
+    filename = f"{report.title.replace(' ', '_')}_{report.id}.{ext}"
+
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="report.download",
+        resource_id=report_id,
+        details={"filename": filename},
+    )
+    return FileResponse(path=report.file_path, media_type=media_type, filename=filename)
+
+
+# ── Delete ─────────────────────────────────────────────────────────────────────
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    report = crud_report.get(db, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if report.created_by != current_user.id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    if report.file_path and os.path.exists(report.file_path):
+        os.remove(report.file_path)
+
+    crud_report.delete(db, report=report)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Phase 14 — V2 dynamic routes
+# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/v2/{report_id}", response_model=ReportV2Response, tags=["Reports V2"])
 async def get_report_v2(
@@ -413,31 +450,6 @@ async def list_report_versions(
     return crud_report_v2.list_versions(db, report_id)
 
 
-# ── Schedules ──────────────────────────────────────────────────────────────────
-
-@router.post("/schedules", response_model=ReportScheduleResponse, status_code=status.HTTP_201_CREATED, tags=["Report Schedules"])
-async def create_schedule(
-    payload: ReportScheduleCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_role(["admin", "manager"])),
-):
-    """Create a cron-based report generation schedule (Phase 14)."""
-    data = payload.model_dump()
-    data["created_by"] = current_user.id
-    return crud_report_v2.create_schedule(db, data)
-
-
-@router.get("/schedules", response_model=List[ReportScheduleResponse], tags=["Report Schedules"])
-async def list_schedules(
-    project_id: Optional[int] = Query(None),
-    enabled_only: bool = Query(False),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """List report schedules (Phase 14)."""
-    return crud_report_v2.list_schedules(db, project_id=project_id, enabled_only=enabled_only)
-
-
 # ── Background helper ──────────────────────────────────────────────────────────
 
 async def _render_and_store_formats(report_id: int, formats: List[str]) -> None:
@@ -497,7 +509,7 @@ async def _render_and_store_formats(report_id: int, formats: List[str]) -> None:
                     version_data["checksum_sha256"] = upload["checksum_sha256"]
                 else:
                     # Local fallback: write to REPORTS_DIR
-                    import os, hashlib
+                    import hashlib
                     reports_dir = os.environ.get("REPORTS_DIR", "/tmp/reports")
                     os.makedirs(f"{reports_dir}/v2/{report_id}", exist_ok=True)
                     path = f"{reports_dir}/v2/{report_id}/report.{ext}"

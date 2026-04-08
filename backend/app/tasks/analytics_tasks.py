@@ -141,9 +141,7 @@ def send_analytics_digest(self, project_id: int, recipient_email: str):
 
         try:
             from app.core.notifications.channels.email_channel import EmailChannel
-            from app.core.config import settings
-            channel = EmailChannel(settings)
-            channel.send_raw(
+            EmailChannel.send_html(
                 to=recipient_email,
                 subject="Red Team Weekly Analytics Digest",
                 html=html_content,

@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/authStore'
+import { authService } from '../services/authService'
 import Card from '../components/Common/Card'
 
 export default function SettingsPage() {
-  const { user } = useAuthStore()
+  const { user, setUser } = useAuthStore()
   const [activeTab, setActiveTab] = useState('profile')
+  const [fullName, setFullName] = useState(user?.full_name || '')
+  const [profileMsg, setProfileMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [currentPwd, setCurrentPwd] = useState('')
+  const [newPwd, setNewPwd] = useState('')
+  const [pwdMsg, setPwdMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const tabs = [
     { id: 'profile', label: 'Profile' },
@@ -12,6 +19,39 @@ export default function SettingsPage() {
     { id: 'notifications', label: 'Notifications' },
     { id: 'api', label: 'API Keys' },
   ]
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setProfileMsg(null)
+    try {
+      const updated = await authService.updateProfile({ full_name: fullName })
+      setUser(updated)
+      setProfileMsg({ text: 'Profile updated successfully.', ok: true })
+    } catch {
+      setProfileMsg({ text: 'Failed to update profile.', ok: false })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentPwd || !newPwd) return
+    setSaving(true)
+    setPwdMsg(null)
+    try {
+      await authService.changePassword(currentPwd, newPwd)
+      setCurrentPwd('')
+      setNewPwd('')
+      setPwdMsg({ text: 'Password updated successfully.', ok: true })
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail
+      setPwdMsg({ text: detail || 'Failed to change password.', ok: false })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -28,10 +68,10 @@ export default function SettingsPage() {
 
       {activeTab === 'profile' && (
         <Card title="Profile Information">
-          <div className="space-y-4 max-w-lg">
+          <form onSubmit={handleSaveProfile} className="space-y-4 max-w-lg">
             <div>
               <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Full Name</label>
-              <input type="text" defaultValue={user?.full_name || ''}
+              <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
             </div>
             <div>
@@ -44,24 +84,38 @@ export default function SettingsPage() {
               <input type="text" defaultValue={user?.role || ''} disabled
                 className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-secondary)] capitalize cursor-not-allowed" />
             </div>
-            <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm">Save Changes</button>
-          </div>
+            {profileMsg && (
+              <p className={`text-sm ${profileMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{profileMsg.text}</p>
+            )}
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm disabled:opacity-50">
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
         </Card>
       )}
 
       {activeTab === 'security' && (
         <Card title="Change Password">
-          <div className="space-y-4 max-w-lg">
+          <form onSubmit={handleChangePassword} className="space-y-4 max-w-lg">
             <div>
               <label className="block text-sm text-[var(--color-text-secondary)] mb-1">Current Password</label>
-              <input type="password" className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+              <input type="password" value={currentPwd} onChange={(e) => setCurrentPwd(e.target.value)} required
+                className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
             </div>
             <div>
               <label className="block text-sm text-[var(--color-text-secondary)] mb-1">New Password</label>
-              <input type="password" className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
+              <input type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} required minLength={8}
+                className="w-full px-4 py-2 bg-[var(--color-bg-tertiary)] border border-[var(--color-border)] rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50" />
             </div>
-            <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm">Update Password</button>
-          </div>
+            {pwdMsg && (
+              <p className={`text-sm ${pwdMsg.ok ? 'text-green-400' : 'text-red-400'}`}>{pwdMsg.text}</p>
+            )}
+            <button type="submit" disabled={saving}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm disabled:opacity-50">
+              {saving ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
         </Card>
       )}
 

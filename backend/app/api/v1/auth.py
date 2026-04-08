@@ -1,15 +1,27 @@
 """Authentication endpoints"""
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.services.auth_service import AuthService
 from app.schemas.user import UserCreate, UserResponse
 from app.schemas.token import Token
 from app.core.security import JWTHandler
+from app.api.deps import get_current_user as _get_current_user
+from app.models.user import User
 import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -26,9 +38,9 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(email: str, password: str, db: Session = Depends(get_db)):
-    """Login user"""
-    user = AuthService.authenticate_user(db, email, password)
+async def login(body: LoginRequest, db: Session = Depends(get_db)):
+    """Login user — accepts JSON body with email and password."""
+    user = AuthService.authenticate_user(db, body.email, body.password)
 
     if not user:
         raise HTTPException(
@@ -42,9 +54,9 @@ async def login(email: str, password: str, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=Token)
-async def refresh(refresh_token: str, db: Session = Depends(get_db)):
-    """Refresh access token"""
-    payload = JWTHandler.verify_token(refresh_token)
+async def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
+    """Refresh access token — accepts JSON body with refresh_token."""
+    payload = JWTHandler.verify_token(body.refresh_token)
 
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
@@ -60,20 +72,43 @@ async def refresh(refresh_token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user(token: str = None, db: Session = Depends(get_db)):
-    """Get current user info"""
-    if not token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+async def me(current_user: User = Depends(_get_current_user)):
+    """Get current user info — authenticated via Bearer token."""
+    return UserResponse.model_validate(current_user)
 
-    payload = JWTHandler.verify_token(token)
 
-    if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+class UpdateProfileRequest(BaseModel):
+    full_name: str | None = None
 
-    user_id = int(payload.get("sub"))
-    user = AuthService.get_user_by_id(db, user_id)
 
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
-    return UserResponse.model_validate(user)
+
+@router.put("/me", response_model=UserResponse)
+async def update_profile(
+    body: UpdateProfileRequest,
+    current_user: User = Depends(_get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Update current user's profile."""
+    if body.full_name is not None:
+        current_user.full_name = body.full_name
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+
+@router.post("/me/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(_get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change current user's password."""
+    from app.core.security import JWTHandler as _sec
+    if not _sec.verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    current_user.hashed_password = _sec.hash_password(body.new_password)
+    db.commit()

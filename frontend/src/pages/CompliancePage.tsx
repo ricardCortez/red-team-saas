@@ -28,30 +28,24 @@ export default function CompliancePage() {
       <h2 className="text-xl font-semibold text-white">Compliance Frameworks</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {frameworks.map((fw) => {
-          const pct = fw.total_controls > 0 ? Math.round((fw.compliant_controls / fw.total_controls) * 100) : 0
-          return (
-            <Card key={fw.id}>
-              <div className="flex items-start gap-3 mb-4">
-                <div className="p-2 bg-green-500/10 rounded-lg"><CheckCircle className="w-5 h-5 text-green-400" /></div>
-                <div>
-                  <h3 className="text-white font-semibold">{fw.name}</h3>
-                  <p className="text-xs text-[var(--color-text-secondary)]">{fw.version}</p>
-                </div>
-              </div>
-              <p className="text-xs text-[var(--color-text-secondary)] mb-3">{fw.description}</p>
+        {frameworks.map((fw) => (
+          <Card key={fw.id}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="p-2 bg-green-500/10 rounded-lg"><CheckCircle className="w-5 h-5 text-green-400" /></div>
               <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-[var(--color-text-secondary)]">{fw.compliant_controls}/{fw.total_controls} controls</span>
-                  <span className="text-white font-medium">{pct}%</span>
-                </div>
-                <div className="w-full h-2 bg-[var(--color-bg-tertiary)] rounded-full">
-                  <div className={`h-2 rounded-full transition-all ${pct >= 80 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${pct}%` }} />
-                </div>
+                <h3 className="text-white font-semibold">{fw.name}</h3>
+                <p className="text-xs text-[var(--color-text-secondary)]">{fw.version} · {fw.framework_type}</p>
               </div>
-            </Card>
-          )
-        })}
+            </div>
+            {fw.description && (
+              <p className="text-xs text-[var(--color-text-secondary)] mb-3">{fw.description}</p>
+            )}
+            <div className="flex justify-between text-xs mt-2">
+              <span className="text-[var(--color-text-secondary)]">{fw.total_requirements} requirements</span>
+              <span className="text-[var(--color-text-secondary)]">{new Date(fw.created_at).toLocaleDateString()}</span>
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   )

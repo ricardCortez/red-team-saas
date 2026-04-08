@@ -75,8 +75,8 @@ export default function FindingsPage() {
                 <tr className="text-left text-[var(--color-text-secondary)] border-b border-[var(--color-border)]">
                   <th className="pb-3 font-medium">Title</th>
                   <th className="pb-3 font-medium">Severity</th>
-                  <th className="pb-3 font-medium">CVE</th>
-                  <th className="pb-3 font-medium">CVSS</th>
+                  <th className="pb-3 font-medium">Host</th>
+                  <th className="pb-3 font-medium">Risk Score</th>
                   <th className="pb-3 font-medium">Status</th>
                   <th className="pb-3 font-medium">Date</th>
                 </tr>
@@ -89,8 +89,8 @@ export default function FindingsPage() {
                       <p className="text-xs text-[var(--color-text-secondary)] line-clamp-1 mt-0.5">{f.description}</p>
                     </td>
                     <td className="py-3"><Badge text={f.severity} variant="severity" /></td>
-                    <td className="py-3 text-[var(--color-text-secondary)] font-mono text-xs">{f.cve_id || '-'}</td>
-                    <td className="py-3 text-white font-medium">{f.cvss_score?.toFixed(1) || '-'}</td>
+                    <td className="py-3 text-[var(--color-text-secondary)] font-mono text-xs">{f.host || '-'}</td>
+                    <td className="py-3 text-white font-medium">{f.risk_score?.toFixed(1) ?? '-'}</td>
                     <td className="py-3"><Badge text={f.status} variant="status" /></td>
                     <td className="py-3 text-[var(--color-text-secondary)]">{formatDate(f.created_at)}</td>
                   </tr>

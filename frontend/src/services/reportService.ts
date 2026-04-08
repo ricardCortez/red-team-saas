@@ -13,7 +13,8 @@ export const reportService = {
   },
 
   async generate(reportData: Record<string, unknown>): Promise<Report> {
-    const { data } = await api.post('/reports/generate', reportData)
+    // Backend endpoint is POST /reports/ (not /reports/generate)
+    const { data } = await api.post('/reports/', reportData)
     return data
   },
 

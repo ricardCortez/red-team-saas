@@ -106,7 +106,7 @@ export default function TargetsPage() {
                 <tr key={t.id} className="hover:bg-[var(--color-bg-tertiary)]/30">
                   <td className="py-3 text-[var(--color-text-secondary)] uppercase text-xs">{t.target_type}</td>
                   <td className="py-3 text-white font-mono text-xs">{t.value}</td>
-                  <td className="py-3 text-[var(--color-text-secondary)]">{(t as any).description || '-'}</td>
+                  <td className="py-3 text-[var(--color-text-secondary)]">{t.description || '-'}</td>
                   <td className="py-3"><Badge text={t.status} variant="status" /></td>
                   <td className="py-3 text-[var(--color-text-secondary)]">{formatDate(t.created_at)}</td>
                   <td className="py-3">

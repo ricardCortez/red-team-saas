@@ -12,6 +12,7 @@ from app.core.sentry_config import init_sentry
 from app.database import init_db
 from app.logging_config import logger
 from app.middleware.metrics_middleware import MetricsMiddleware
+from app.middleware.security_middleware import SecurityMiddleware
 from app.api.v1 import auth, tools
 from app.api.v1.router import api_router
 from app.api.v1.websocket_endpoints import router as ws_router
@@ -54,6 +55,7 @@ app = FastAPI(
 setup_openapi(app)
 
 app.add_middleware(MetricsMiddleware)
+app.add_middleware(SecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,

@@ -23,8 +23,7 @@ api.interceptors.response.use(
       const refresh = localStorage.getItem('refresh_token')
       if (refresh) {
         try {
-          const { data } = await axios.post('/api/v1/auth/refresh', null, {
-            params: { refresh_token: refresh },
+          const { data } = await axios.post('/api/v1/auth/refresh', { refresh_token: refresh }, {
             timeout: 8000,
           })
           localStorage.setItem('access_token', data.access_token)

@@ -1,4 +1,5 @@
 """Phishing campaign endpoints"""
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -51,10 +52,16 @@ async def get_gophish_resources(
 
     client = GoPhishClient(url, key)
     try:
-        templates = [GoPhishTemplate(id=t["id"], name=t["name"]) for t in client.list_templates()]
-        pages = [GoPhishPage(id=p["id"], name=p["name"]) for p in client.list_pages()]
-        smtp = [GoPhishSMTP(id=s["id"], name=s["name"]) for s in client.list_smtp_profiles()]
-        groups = [GoPhishGroup(id=g["id"], name=g["name"]) for g in client.list_groups()]
+        raw_t, raw_p, raw_s, raw_g = await asyncio.gather(
+            asyncio.to_thread(client.list_templates),
+            asyncio.to_thread(client.list_pages),
+            asyncio.to_thread(client.list_smtp_profiles),
+            asyncio.to_thread(client.list_groups),
+        )
+        templates = [GoPhishTemplate(id=t["id"], name=t["name"]) for t in raw_t]
+        pages = [GoPhishPage(id=p["id"], name=p["name"]) for p in raw_p]
+        smtp = [GoPhishSMTP(id=s["id"], name=s["name"]) for s in raw_s]
+        groups = [GoPhishGroup(id=g["id"], name=g["name"]) for g in raw_g]
     except GoPhishError as exc:
         raise HTTPException(status_code=502, detail=f"GoPhish error: {exc}")
 
@@ -197,7 +204,7 @@ async def launch_campaign(
     }
 
     try:
-        gp_campaign = client.create_campaign(payload)
+        gp_campaign = await asyncio.to_thread(client.create_campaign, payload)
     except GoPhishError as exc:
         raise HTTPException(status_code=502, detail=f"GoPhish error: {exc}")
 
@@ -225,7 +232,7 @@ async def stop_campaign(
     if campaign.gophish_campaign_id:
         client = GoPhishClient(campaign.gophish_url, campaign.gophish_api_key)
         try:
-            client.complete_campaign(campaign.gophish_campaign_id)
+            await asyncio.to_thread(client.complete_campaign, campaign.gophish_campaign_id)
         except GoPhishError:
             pass  # Log but don't fail — still mark locally as completed
 
@@ -251,7 +258,7 @@ async def get_results(
 
     client = GoPhishClient(campaign.gophish_url, campaign.gophish_api_key)
     try:
-        data = client.get_campaign_results(campaign.gophish_campaign_id)
+        data = await asyncio.to_thread(client.get_campaign_results, campaign.gophish_campaign_id)
     except GoPhishError as exc:
         raise HTTPException(status_code=502, detail=f"GoPhish error: {exc}")
 

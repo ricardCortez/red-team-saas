@@ -43,6 +43,7 @@ export interface Target {
   name: string
   target_type: string
   value: string
+  description: string | null
   project_id: number
   status: string
   created_at: string
@@ -54,14 +55,15 @@ export interface Scan {
   name: string
   scan_type: string
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
-  target_id: number
+  target: string
   project_id: number
-  tool_name: string | null
-  parameters: Record<string, unknown>
+  tools: string[]
+  options: Record<string, unknown>
   progress: number
   started_at: string | null
   completed_at: string | null
   created_at: string
+  celery_task_id: string | null
 }
 
 // Findings
@@ -70,38 +72,45 @@ export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info'
 export interface Finding {
   id: number
   title: string
-  description: string
+  description: string | null
   severity: Severity
   status: string
-  scan_id: number
-  target_id: number | null
-  cve_id: string | null
-  cvss_score: number | null
-  evidence: string | null
-  remediation: string | null
+  project_id: number | null
+  task_id: number | null
+  result_id: number | null
+  host: string | null
+  port: number | null
+  risk_score: number
+  tool_name: string | null
+  false_positive: boolean
+  is_duplicate: boolean
+  notes: string | null
   created_at: string
+  updated_at: string
 }
 
 // Reports
 export interface Report {
   id: number
-  name: string
+  title: string
   report_type: string
-  format: string
+  report_format: string
   status: string
   project_id: number
   created_at: string
-  file_url: string | null
+  file_path: string | null
+  celery_task_id: string | null
 }
 
 // Compliance
 export interface ComplianceFramework {
   id: number
   name: string
+  framework_type: string
   version: string
-  description: string
-  total_controls: number
-  compliant_controls: number
+  description: string | null
+  total_requirements: number
+  created_at: string
 }
 
 // Tools

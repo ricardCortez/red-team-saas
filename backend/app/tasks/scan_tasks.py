@@ -28,7 +28,6 @@ def execute_scan(self, scan_id: int):
     from app.core.tool_engine.tool_registry import ToolRegistry
     from app.core.tool_engine.executor import SubprocessExecutor
     from app.core.findings_processor import process_result_findings
-    from app.core.security import EncryptionHandler
 
     db = SessionLocal()
     try:
@@ -58,7 +57,8 @@ def execute_scan(self, scan_id: int):
 
         # Mark scan as running
         scan.status = ScanStatus.running
-        scan.started_at = datetime.now(timezone.utc)
+        if not scan.started_at:
+            scan.started_at = datetime.now(timezone.utc)
         scan.progress = 0
         db.commit()
 
@@ -107,7 +107,7 @@ def execute_scan(self, scan_id: int):
                     tool_name=tool_name,
                     tool=tool_name,
                     target=scan.target,
-                    raw_output=EncryptionHandler.encrypt(result.raw_output) if result.raw_output else None,
+                    raw_output=result.raw_output,
                     parsed_output=result.parsed_output,
                     findings=result.findings,
                     risk_score=result.risk_score,
@@ -122,13 +122,20 @@ def execute_scan(self, scan_id: int):
                 db.commit()
                 db.refresh(result_obj)
 
-                # Extract findings → Finding rows, then back-fill scan_id
+                # Extract findings → Finding rows with scan_id pre-set
                 if result.findings:
                     try:
+                        # process_result_findings commits internally; pass scan_id via result_obj
+                        result_obj.scan_id = scan_id if hasattr(result_obj, "scan_id") else None
                         created = process_result_findings(db, result_obj)
+                        # Back-fill scan_id on any findings that missed it
+                        needs_commit = False
                         for f in created:
-                            f.scan_id = scan_id
-                        db.commit()
+                            if not f.scan_id:
+                                f.scan_id = scan_id
+                                needs_commit = True
+                        if needs_commit:
+                            db.commit()
                     except Exception as fp_exc:
                         logger.warning("findings_processor failed (scan %s, tool %s): %s", scan_id, tool_name, fp_exc)
 
@@ -172,7 +179,7 @@ def execute_scan(self, scan_id: int):
         db.commit()
 
         logger.info("execute_scan: scan %s done — status=%s tools=%s", scan_id, scan.status, total)
-        return {"scan_id": scan_id, "status": scan.status, "tools": total}
+        return {"scan_id": scan_id, "status": scan.status.value, "tools": total}
 
     except Exception as exc:
         logger.exception("execute_scan: unhandled error for scan %s: %s", scan_id, exc)
