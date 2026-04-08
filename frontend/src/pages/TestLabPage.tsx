@@ -1,6 +1,15 @@
-import { useState, useEffect } from 'react';
-import { Play, Mail, FileText, ExternalLink, Clock, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Play, Mail, FileText, ExternalLink, Clock, AlertCircle, RefreshCw } from 'lucide-react';
 import { ServiceHealthCard } from '../components/TestLab/ServiceHealthCard';
+import api from '../services/api';
+
+type HealthStatus = 'checking' | 'online' | 'offline';
+
+interface ServiceInfo {
+  name: string;
+  description: string;
+  link?: string;
+}
 
 interface Execution {
   id: number;
@@ -23,29 +32,24 @@ interface Stats {
   targets: number;
 }
 
-const API_BASE = '/api/v1';
-
-const SERVICES = [
-  { name: 'API', url: `${window.location.origin}/api/v1/`, description: 'FastAPI backend' },
-  { name: 'GoPhish', url: 'https://localhost:3333', description: 'Phishing admin UI' },
-  { name: 'Grafana', url: 'http://localhost:3000', description: 'Monitoring dashboards' },
-  { name: 'Prometheus', url: 'http://localhost:9090', description: 'Metrics collector' },
-  { name: 'Flower', url: 'http://localhost:5555', description: 'Celery task monitor' },
+const SERVICES: ServiceInfo[] = [
+  { name: 'API', description: 'FastAPI backend' },
+  { name: 'PostgreSQL', description: 'Primary database' },
+  { name: 'Redis', description: 'Cache & task broker' },
+  { name: 'GoPhish', description: 'Phishing admin UI', link: 'https://localhost:3333' },
+  { name: 'Grafana', description: 'Monitoring dashboards', link: 'http://localhost:3000' },
+  { name: 'Prometheus', description: 'Metrics collector', link: 'http://localhost:9090' },
+  { name: 'Flower', description: 'Celery task monitor', link: 'http://localhost:5555' },
 ];
 
 const QUICK_LINKS = [
-  { label: 'Grafana', url: 'http://localhost:3000', icon: ExternalLink },
-  { label: 'Prometheus', url: 'http://localhost:9090', icon: ExternalLink },
-  { label: 'Flower', url: 'http://localhost:5555', icon: ExternalLink },
-  { label: 'Swagger Docs', url: '/api/docs', icon: ExternalLink },
+  { label: 'Grafana', url: 'http://localhost:3000' },
+  { label: 'Prometheus', url: 'http://localhost:9090' },
+  { label: 'Flower', url: 'http://localhost:5555' },
+  { label: 'Swagger Docs', url: '/api/docs' },
 ];
 
-function getAuthHeaders() {
-  const token = localStorage.getItem('token') ?? '';
-  return { Authorization: `Bearer ${token}` };
-}
-
-function statusColor(status: string) {
+function statusBadgeColor(status: string) {
   switch (status?.toLowerCase()) {
     case 'completed': case 'success': case 'active': return 'text-[var(--color-neon-green)]';
     case 'running': case 'in_progress': return 'text-[var(--color-neon-blue)]';
@@ -55,36 +59,55 @@ function statusColor(status: string) {
 }
 
 export default function TestLabPage() {
+  const [serviceStatuses, setServiceStatuses] = useState<Record<string, HealthStatus>>(
+    Object.fromEntries(SERVICES.map((s) => [s.name, 'checking']))
+  );
+  const [healthLoading, setHealthLoading] = useState(false);
+
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [stats, setStats] = useState<Stats>({ findings: 0, scans: 0, projects: 0, targets: 0 });
+
   const [scanTarget, setScanTarget] = useState('');
   const [scanLoading, setScanLoading] = useState(false);
   const [scanResult, setScanResult] = useState<{ id: number } | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportResult, setReportResult] = useState<string | null>(null);
 
+  const fetchHealth = useCallback(async () => {
+    setHealthLoading(true);
+    setServiceStatuses(Object.fromEntries(SERVICES.map((s) => [s.name, 'checking'])));
+    try {
+      const res = await api.get('/services/health');
+      const data: Record<string, string> = res.data.services ?? {};
+      setServiceStatuses(
+        Object.fromEntries(
+          SERVICES.map((s) => [s.name, (data[s.name] ?? 'offline') as HealthStatus])
+        )
+      );
+    } catch {
+      setServiceStatuses(Object.fromEntries(SERVICES.map((s) => [s.name, 'offline'])));
+    } finally {
+      setHealthLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const headers = getAuthHeaders();
+    fetchHealth();
 
-    // Recent executions
-    fetch(`${API_BASE}/executions/?limit=10`, { headers })
-      .then((r) => r.json())
-      .then((data) => setExecutions(Array.isArray(data) ? data : data.items ?? []))
+    api.get('/executions/?limit=10')
+      .then((r) => setExecutions(Array.isArray(r.data) ? r.data : r.data.items ?? []))
       .catch(() => {});
 
-    // Recent campaigns
-    fetch(`${API_BASE}/phishing/campaigns/?limit=5`, { headers })
-      .then((r) => r.json())
-      .then((data) => setCampaigns(Array.isArray(data) ? data : data.items ?? []))
+    api.get('/phishing/campaigns/?limit=5')
+      .then((r) => setCampaigns(Array.isArray(r.data) ? r.data : r.data.items ?? []))
       .catch(() => {});
 
-    // Stats
     Promise.all([
-      fetch(`${API_BASE}/findings/`, { headers }).then((r) => r.json()).catch(() => []),
-      fetch(`${API_BASE}/executions/`, { headers }).then((r) => r.json()).catch(() => []),
-      fetch(`${API_BASE}/projects/`, { headers }).then((r) => r.json()).catch(() => []),
-      fetch(`${API_BASE}/targets/`, { headers }).then((r) => r.json()).catch(() => []),
+      api.get('/findings/').catch(() => ({ data: [] })),
+      api.get('/executions/').catch(() => ({ data: [] })),
+      api.get('/projects/').catch(() => ({ data: [] })),
+      api.get('/targets/').catch(() => ({ data: [] })),
     ]).then(([findings, scans, projects, targets]) => {
       const count = (d: unknown) => {
         if (Array.isArray(d)) return d.length;
@@ -92,13 +115,13 @@ export default function TestLabPage() {
         return 0;
       };
       setStats({
-        findings: count(findings),
-        scans: count(scans),
-        projects: count(projects),
-        targets: count(targets),
+        findings: count(findings.data),
+        scans: count(scans.data),
+        projects: count(projects.data),
+        targets: count(targets.data),
       });
     });
-  }, []);
+  }, [fetchHealth]);
 
   const handleQuickScan = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,18 +129,15 @@ export default function TestLabPage() {
     setScanLoading(true);
     setScanResult(null);
     try {
-      // Get first project
-      const projects = await fetch(`${API_BASE}/projects/`, { headers: getAuthHeaders() })
-        .then((r) => r.json());
-      const projectList = Array.isArray(projects) ? projects : projects.items ?? [];
+      const projectsRes = await api.get('/projects/');
+      const projectList = Array.isArray(projectsRes.data) ? projectsRes.data : projectsRes.data.items ?? [];
       if (projectList.length === 0) { alert('No projects available. Create a project first.'); return; }
-      const res = await fetch(`${API_BASE}/executions/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ tool_name: 'nmap', parameters: { target: scanTarget, profile: 'quick' }, project_id: projectList[0].id }),
+      const res = await api.post('/executions/', {
+        tool_name: 'nmap',
+        parameters: { target: scanTarget, profile: 'quick' },
+        project_id: projectList[0].id,
       });
-      const data = await res.json();
-      if (res.ok) setScanResult({ id: data.id });
+      setScanResult({ id: res.data.id });
     } catch {
       /* ignore */
     } finally {
@@ -129,21 +149,13 @@ export default function TestLabPage() {
     setReportLoading(true);
     setReportResult(null);
     try {
-      const projects = await fetch(`${API_BASE}/projects/`, { headers: getAuthHeaders() }).then((r) => r.json());
-      const projectList = Array.isArray(projects) ? projects : projects.items ?? [];
+      const projectsRes = await api.get('/projects/');
+      const projectList = Array.isArray(projectsRes.data) ? projectsRes.data : projectsRes.data.items ?? [];
       if (projectList.length === 0) { setReportResult('No projects found.'); return; }
-      const res = await fetch(`${API_BASE}/reports/generate/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify({ project_id: projectList[0].id }),
-      });
-      if (res.ok) {
-        setReportResult(`Report generated for project "${projectList[0].name}"`);
-      } else {
-        setReportResult('Report generation failed or not supported.');
-      }
+      await api.post('/reports/generate/', { project_id: projectList[0].id });
+      setReportResult(`Report generated for project "${projectList[0].name}"`);
     } catch {
-      setReportResult('Error generating report.');
+      setReportResult('Report generation failed or not supported.');
     } finally {
       setReportLoading(false);
     }
@@ -159,10 +171,26 @@ export default function TestLabPage() {
 
       {/* System Health */}
       <section>
-        <h2 className="text-sm font-mono text-gray-300 mb-3 uppercase tracking-wider">System Health</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-mono text-gray-300 uppercase tracking-wider">System Health</h2>
+          <button
+            onClick={fetchHealth}
+            disabled={healthLoading}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${healthLoading ? 'animate-spin' : ''}`} />
+            Recheck all
+          </button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {SERVICES.map((svc) => (
-            <ServiceHealthCard key={svc.name} name={svc.name} url={svc.url} description={svc.description} />
+            <ServiceHealthCard
+              key={svc.name}
+              name={svc.name}
+              status={serviceStatuses[svc.name] ?? 'checking'}
+              description={svc.description}
+              onRecheck={fetchHealth}
+            />
           ))}
         </div>
       </section>
@@ -240,21 +268,18 @@ export default function TestLabPage() {
       <section>
         <h2 className="text-sm font-mono text-gray-300 mb-3 uppercase tracking-wider">Quick Links</h2>
         <div className="flex flex-wrap gap-3">
-          {QUICK_LINKS.map((link) => {
-            const Icon = link.icon;
-            return (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-4 py-2 border border-white/20 rounded text-sm text-gray-300 hover:border-[var(--color-neon-green)] hover:text-[var(--color-neon-green)] transition-all font-mono"
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {link.label}
-              </a>
-            );
-          })}
+          {QUICK_LINKS.map((link) => (
+            <a
+              key={link.label}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-4 py-2 border border-white/20 rounded text-sm text-gray-300 hover:border-[var(--color-neon-green)] hover:text-[var(--color-neon-green)] transition-all font-mono"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              {link.label}
+            </a>
+          ))}
         </div>
       </section>
 
@@ -296,7 +321,7 @@ export default function TestLabPage() {
                     <span className="font-mono text-white">{exec.tool_name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`font-mono ${statusColor(exec.status)}`}>{exec.status}</span>
+                    <span className={`font-mono ${statusBadgeColor(exec.status)}`}>{exec.status}</span>
                     <span className="text-gray-600 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {new Date(exec.created_at).toLocaleDateString()}
@@ -313,7 +338,7 @@ export default function TestLabPage() {
                     <span className="font-mono text-white">{camp.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`font-mono ${statusColor(camp.status)}`}>{camp.status}</span>
+                    <span className={`font-mono ${statusBadgeColor(camp.status)}`}>{camp.status}</span>
                     <span className="text-gray-600 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {new Date(camp.created_date).toLocaleDateString()}

@@ -13,6 +13,7 @@ from app.api.v1.endpoints import integrations
 from app.api.v1.endpoints import security
 from app.api.v1.endpoints import phishing as phishing_endpoints
 from app.api.v1.endpoints import ai as ai_endpoints
+from app.api.v1.endpoints import services_health
 
 api_router = APIRouter()
 
@@ -46,3 +47,5 @@ api_router.include_router(security.router, prefix="", tags=["Security"])
 api_router.include_router(phishing_endpoints.router, prefix="/phishing/campaigns", tags=["Phishing"])
 # AI integration
 api_router.include_router(ai_endpoints.router, tags=["AI"])
+# Services health proxy
+api_router.include_router(services_health.router, tags=["Health"])

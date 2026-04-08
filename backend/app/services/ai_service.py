@@ -15,10 +15,10 @@ def _build_provider(config: UserAIConfig) -> AIProvider:
 
     if p == AIProviderEnum.ollama:
         from app.core.ai.providers.ollama import OllamaProvider
-        return OllamaProvider(base_url=url or "http://localhost:11434")
+        return OllamaProvider(base_url=url or "http://host.docker.internal:11434")
     if p == AIProviderEnum.lmstudio:
         from app.core.ai.providers.lmstudio import LMStudioProvider
-        return LMStudioProvider(base_url=url or "http://localhost:1234/v1")
+        return LMStudioProvider(base_url=url or "http://host.docker.internal:1234/v1")
     if p == AIProviderEnum.openai_compatible:
         from app.core.ai.providers.openai_compat import OpenAICompatProvider
         return OpenAICompatProvider(base_url=url, api_key=key)

@@ -1,38 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
 import { RefreshCw } from 'lucide-react';
-
-interface ServiceHealthCardProps {
-  name: string;
-  url: string;
-  description?: string;
-}
 
 type HealthStatus = 'checking' | 'online' | 'offline';
 
-export function ServiceHealthCard({ name, url, description }: ServiceHealthCardProps) {
-  const [status, setStatus] = useState<HealthStatus>('checking');
+interface ServiceHealthCardProps {
+  name: string;
+  status: HealthStatus;
+  description?: string;
+  onRecheck: () => void;
+}
 
-  const check = useCallback(async () => {
-    setStatus('checking');
-    try {
-      const res = await fetch(url, {
-        mode: 'no-cors', // allows cross-origin pings without CORS error
-        cache: 'no-cache',
-        signal: AbortSignal.timeout(4000),
-      });
-      // no-cors always returns opaque response (type==='opaque'), which means the fetch succeeded
-      // If fetch throws, the service is offline
-      void res;
-      setStatus('online');
-    } catch {
-      setStatus('offline');
-    }
-  }, [url]);
-
-  useEffect(() => {
-    check();
-  }, [check]);
-
+export function ServiceHealthCard({ name, status, description, onRecheck }: ServiceHealthCardProps) {
   const statusColor = {
     checking: 'text-yellow-400',
     online: 'text-[var(--color-neon-green)]',
@@ -61,7 +38,7 @@ export function ServiceHealthCard({ name, url, description }: ServiceHealthCardP
           {status === 'checking' ? '...' : status}
         </span>
         <button
-          onClick={check}
+          onClick={onRecheck}
           className="text-gray-500 hover:text-white transition-colors"
           title="Recheck"
         >

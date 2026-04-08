@@ -27,6 +27,26 @@ from app.core.audit import log_action
 
 router = APIRouter()
 
+_GOPHISH_DOCKER_URL = "https://gophish:3333"
+
+
+def _normalize_gophish_url(url: str) -> str:
+    """Replace localhost/127.0.0.1 GoPhish URLs with the Docker-internal service name.
+
+    Campaigns created before the Docker fix have http://localhost:3333 stored.
+    From inside the API container, only https://gophish:3333 is reachable.
+    """
+    if not url:
+        return _GOPHISH_DOCKER_URL
+    _localhost_variants = (
+        "http://localhost:3333", "https://localhost:3333",
+        "http://127.0.0.1:3333", "https://127.0.0.1:3333",
+    )
+    for variant in _localhost_variants:
+        if url.startswith(variant):
+            return _GOPHISH_DOCKER_URL
+    return url
+
 
 def _get_campaign_or_404(db: Session, campaign_id: int) -> PhishingCampaign:
     c = crud_phishing.get(db, campaign_id)
@@ -50,7 +70,7 @@ async def get_gophish_resources(
     if not url or not key:
         raise HTTPException(status_code=400, detail="gophish_url and gophish_api_key are required")
 
-    client = GoPhishClient(url, key)
+    client = GoPhishClient(_normalize_gophish_url(url), key)
     try:
         raw_t, raw_p, raw_s, raw_g = await asyncio.gather(
             asyncio.to_thread(client.list_templates),
@@ -192,7 +212,7 @@ async def launch_campaign(
     if not targets:
         raise HTTPException(status_code=400, detail="Add at least one target before launching")
 
-    client = GoPhishClient(campaign.gophish_url, campaign.gophish_api_key)
+    client = GoPhishClient(_normalize_gophish_url(campaign.gophish_url), campaign.gophish_api_key)
     payload = {
         "name": campaign.name,
         "template": {"name": campaign.template_name or ""},
@@ -230,7 +250,7 @@ async def stop_campaign(
         raise HTTPException(status_code=400, detail="Campaign is not active")
 
     if campaign.gophish_campaign_id:
-        client = GoPhishClient(campaign.gophish_url, campaign.gophish_api_key)
+        client = GoPhishClient(_normalize_gophish_url(campaign.gophish_url), campaign.gophish_api_key)
         try:
             await asyncio.to_thread(client.complete_campaign, campaign.gophish_campaign_id)
         except GoPhishError:
@@ -256,7 +276,7 @@ async def get_results(
     if not campaign.gophish_campaign_id:
         return PhishingCampaignResults(campaign_id=campaign_id, results=[], stats={})
 
-    client = GoPhishClient(campaign.gophish_url, campaign.gophish_api_key)
+    client = GoPhishClient(_normalize_gophish_url(campaign.gophish_url), campaign.gophish_api_key)
     try:
         data = await asyncio.to_thread(client.get_campaign_results, campaign.gophish_campaign_id)
     except GoPhishError as exc:

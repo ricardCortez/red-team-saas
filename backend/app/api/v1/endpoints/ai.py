@@ -16,9 +16,9 @@ from app.models.finding import Finding
 router = APIRouter(prefix="/ai", tags=["AI"])
 
 PROVIDER_META = {
-    AIProviderEnum.ollama: {"label": "Ollama", "type": "local", "default_url": "http://localhost:11434"},
-    AIProviderEnum.lmstudio: {"label": "LM Studio", "type": "local", "default_url": "http://localhost:1234/v1"},
-    AIProviderEnum.openai_compatible: {"label": "OpenAI Compatible", "type": "local", "default_url": "http://localhost:8080/v1"},
+    AIProviderEnum.ollama: {"label": "Ollama", "type": "local", "default_url": "http://host.docker.internal:11434"},
+    AIProviderEnum.lmstudio: {"label": "LM Studio", "type": "local", "default_url": "http://host.docker.internal:1234/v1"},
+    AIProviderEnum.openai_compatible: {"label": "OpenAI Compatible", "type": "local", "default_url": "http://host.docker.internal:8080/v1"},
     AIProviderEnum.openai: {"label": "OpenAI", "type": "cloud", "default_url": None},
     AIProviderEnum.anthropic: {"label": "Anthropic (Claude)", "type": "cloud", "default_url": None},
     AIProviderEnum.gemini: {"label": "Google Gemini", "type": "cloud", "default_url": None},
