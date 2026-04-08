@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   '/compliance': 'Compliance',
   '/threat-intel': 'Threat Intelligence',
   '/notifications': 'Notifications',
+  '/test-lab': 'Test Lab',
   '/settings': 'Settings',
   '/phishing': 'Phishing',
 }

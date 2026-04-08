@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, Scan, Bug, FileText, FolderOpen, Crosshair,
-  Shield, Bell, Settings, Wrench, Globe, LogOut, Mail,
+  Shield, Bell, Settings, Wrench, Globe, LogOut, Mail, FlaskConical,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { cn } from '../../utils/cn'
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/compliance', icon: Shield, label: 'Compliance' },
   { to: '/threat-intel', icon: Globe, label: 'Threat Intel' },
   { to: '/notifications', icon: Bell, label: 'Notifications' },
+  { to: '/test-lab', icon: FlaskConical, label: 'Test Lab' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
