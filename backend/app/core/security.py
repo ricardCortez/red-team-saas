@@ -1,6 +1,8 @@
 """Security utilities: JWT, encryption, passwords"""
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import base64
+import hashlib
 import jwt
 from passlib.context import CryptContext
 from cryptography.fernet import Fernet
@@ -11,12 +13,11 @@ from app.core.config import settings
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Encryption
-try:
-    cipher = Fernet(settings.ENCRYPTION_KEY.encode() if len(settings.ENCRYPTION_KEY) >= 32
-                    else Fernet.generate_key())
-except Exception:
-    cipher = Fernet(Fernet.generate_key())
+# Encryption — derive a stable 32-byte Fernet key from ENCRYPTION_KEY using SHA-256.
+# This is deterministic across restarts regardless of the raw string format.
+_raw_key = settings.ENCRYPTION_KEY.encode()
+_derived_key = base64.urlsafe_b64encode(hashlib.sha256(_raw_key).digest())
+cipher = Fernet(_derived_key)
 
 
 class JWTHandler:
