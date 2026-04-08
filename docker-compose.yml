@@ -142,7 +142,7 @@ services:
       - gophish_data:/opt/gophish
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3333"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "--no-check-certificate", "https://localhost:3333"]
       interval: 15s
       timeout: 5s
       retries: 5

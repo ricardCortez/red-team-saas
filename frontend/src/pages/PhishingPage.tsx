@@ -62,7 +62,7 @@ export default function PhishingPage() {
     project_id: 0,
     name: '',
     description: '',
-    gophish_url: 'http://localhost:3333',
+    gophish_url: 'https://gophish:3333',
     gophish_api_key: localStorage.getItem('gophish_api_key') ?? '',
     template_name: 'Microsoft 365 - Account Verification',
     landing_page_name: 'Microsoft Login Page',
@@ -440,7 +440,7 @@ export default function PhishingPage() {
               <div>
                 <label className="block text-xs text-[var(--color-text-secondary)] mb-1">GoPhish URL</label>
                 <input required value={createForm.gophish_url} onChange={(e) => setCreateForm({ ...createForm, gophish_url: e.target.value })}
-                  placeholder="http://localhost:3333"
+                  placeholder="https://gophish:3333"
                   className="w-full px-3 py-2 bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500/50" />
               </div>
               <div>
