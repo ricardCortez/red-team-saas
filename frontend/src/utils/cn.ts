@@ -6,22 +6,22 @@ export function cn(...inputs: ClassValue[]) {
 
 export function severityColor(severity: string): string {
   const colors: Record<string, string> = {
-    critical: 'text-red-500 bg-red-500/10',
-    high: 'text-orange-500 bg-orange-500/10',
-    medium: 'text-yellow-500 bg-yellow-500/10',
-    low: 'text-blue-500 bg-blue-500/10',
-    info: 'text-gray-400 bg-gray-400/10',
+    critical: 'text-[#ff0040] bg-[#ff0040]/10 border-[#ff0040]/30',
+    high:     'text-[#ff6b00] bg-[#ff6b00]/10 border-[#ff6b00]/30',
+    medium:   'text-[#ffd000] bg-[#ffd000]/10 border-[#ffd000]/30',
+    low:      'text-[#00d4ff] bg-[#00d4ff]/10 border-[#00d4ff]/30',
+    info:     'text-gray-400  bg-gray-400/10  border-gray-400/20',
   }
   return colors[severity] || colors.info
 }
 
 export function statusColor(status: string): string {
   const colors: Record<string, string> = {
-    running: 'text-blue-400 bg-blue-400/10',
-    completed: 'text-green-400 bg-green-400/10',
-    failed: 'text-red-400 bg-red-400/10',
-    pending: 'text-yellow-400 bg-yellow-400/10',
-    cancelled: 'text-gray-400 bg-gray-400/10',
+    running:   'text-[#00d4ff] bg-[#00d4ff]/10 border-[#00d4ff]/30',
+    completed: 'text-[#00ff41] bg-[#00ff41]/10 border-[#00ff41]/30',
+    failed:    'text-[#ff0040] bg-[#ff0040]/10 border-[#ff0040]/30',
+    pending:   'text-[#ffd000] bg-[#ffd000]/10 border-[#ffd000]/30',
+    cancelled: 'text-gray-400  bg-gray-400/10  border-gray-400/20',
   }
   return colors[status] || colors.pending
 }

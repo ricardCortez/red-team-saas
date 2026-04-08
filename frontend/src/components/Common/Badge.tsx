@@ -12,10 +12,14 @@ export default function Badge({ text, variant = 'default', className }: BadgePro
       ? severityColor(text)
       : variant === 'status'
         ? statusColor(text)
-        : 'text-gray-300 bg-gray-500/10'
+        : 'text-gray-300 bg-gray-500/10 border border-gray-500/20'
 
   return (
-    <span className={cn('inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium capitalize', colorClass, className)}>
+    <span className={cn(
+      'inline-flex items-center px-2.5 py-0.5 rounded-sm text-xs font-mono font-medium capitalize border',
+      colorClass,
+      className,
+    )}>
       {text}
     </span>
   )

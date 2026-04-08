@@ -8,12 +8,20 @@
     --color-warning: #f59e0b;
     --color-success: #10b981;
     --color-info: #3b82f6;
-    --color-bg: #0f172a;
-    --color-bg-secondary: #1e293b;
-    --color-bg-tertiary: #334155;
-    --color-text: #f8fafc;
-    --color-text-secondary: #94a3b8;
-    --color-border: #334155;
+    --color-bg: #0a0f1e;
+    --color-bg-secondary: #0d1526;
+    --color-bg-tertiary: #162035;
+    --color-text: #e2e8f0;
+    --color-text-secondary: #64748b;
+    --color-border: #1e2d45;
+    /* Neon accents */
+    --neon-green: #00ff41;
+    --neon-red: #ff0040;
+    --neon-blue: #00d4ff;
+    --neon-purple: #bf00ff;
+    --glow-green: 0 0 8px #00ff41, 0 0 20px #00ff4122;
+    --glow-red: 0 0 8px #ff0040, 0 0 20px #ff004022;
+    --glow-blue: 0 0 8px #00d4ff, 0 0 20px #00d4ff22;
   }
 }
 
@@ -22,18 +30,51 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
 }
 
-#root {
-  min-height: 100vh;
-}
+#root { min-height: 100vh; }
 
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: var(--color-bg-secondary); }
-::-webkit-scrollbar-thumb { background: var(--color-bg-tertiary); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--neon-green); border-radius: 2px; opacity: 0.3; }
 
-.severity-critical { color: #ef4444; }
-.severity-high { color: #f97316; }
-.severity-medium { color: #f59e0b; }
-.severity-low { color: #3b82f6; }
-.severity-info { color: #6b7280; }
+/* Severity */
+.severity-critical { color: #ff0040; text-shadow: 0 0 8px #ff004066; }
+.severity-high     { color: #ff6b00; text-shadow: 0 0 8px #ff6b0066; }
+.severity-medium   { color: #ffd000; text-shadow: 0 0 8px #ffd00066; }
+.severity-low      { color: #00d4ff; text-shadow: 0 0 8px #00d4ff66; }
+.severity-info     { color: #64748b; }
+
+/* Neon pulse animation */
+@keyframes neon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.neon-pulse { animation: neon-pulse 2s ease-in-out infinite; }
+
+/* Neon glow utilities */
+.glow-green { box-shadow: var(--glow-green); border-color: var(--neon-green) !important; }
+.glow-red   { box-shadow: var(--glow-red);   border-color: var(--neon-red)   !important; }
+.glow-blue  { box-shadow: var(--glow-blue);  border-color: var(--neon-blue)  !important; }
+
+/* Neon button style */
+.btn-neon {
+  border: 1px solid var(--neon-green);
+  color: var(--neon-green);
+  background: transparent;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.btn-neon:hover {
+  background: var(--neon-green);
+  color: #0a0f1e;
+  box-shadow: var(--glow-green);
+}
+.btn-neon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
