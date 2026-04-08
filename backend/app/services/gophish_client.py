@@ -21,14 +21,18 @@ class GoPhishError(Exception):
 class GoPhishClient:
     def __init__(self, base_url: str, api_key: str):
         self._base = base_url.rstrip("/")
-        # GoPhish REST API uses HTTP Basic Auth: api_key as username, empty password
-        self._auth = (api_key, "")
+        # GoPhish REST API authenticates via query parameter: ?api_key=<key>
+        self._api_key = api_key
         self._headers = {"Content-Type": "application/json"}
 
+    def _url(self, path: str) -> str:
+        sep = "&" if "?" in path else "?"
+        return f"{self._base}{path}{sep}api_key={self._api_key}"
+
     def _get(self, path: str) -> Any:
-        url = f"{self._base}{path}"
+        url = self._url(path)
         try:
-            r = httpx.get(url, headers=self._headers, auth=self._auth, timeout=_TIMEOUT, verify=False)
+            r = httpx.get(url, headers=self._headers, timeout=_TIMEOUT, verify=False)
             r.raise_for_status()
             return r.json()
         except httpx.HTTPStatusError as exc:
@@ -37,9 +41,9 @@ class GoPhishClient:
             raise GoPhishError(f"GET {path} failed: {exc}") from exc
 
     def _post(self, path: str, data: dict) -> Any:
-        url = f"{self._base}{path}"
+        url = self._url(path)
         try:
-            r = httpx.post(url, headers=self._headers, auth=self._auth, json=data, timeout=_TIMEOUT, verify=False)
+            r = httpx.post(url, headers=self._headers, json=data, timeout=_TIMEOUT, verify=False)
             r.raise_for_status()
             return r.json()
         except httpx.HTTPStatusError as exc:
@@ -48,9 +52,9 @@ class GoPhishClient:
             raise GoPhishError(f"POST {path} failed: {exc}") from exc
 
     def _delete(self, path: str) -> Any:
-        url = f"{self._base}{path}"
+        url = self._url(path)
         try:
-            r = httpx.delete(url, headers=self._headers, auth=self._auth, timeout=_TIMEOUT, verify=False)
+            r = httpx.delete(url, headers=self._headers, timeout=_TIMEOUT, verify=False)
             r.raise_for_status()
             return r.json() if r.content else {}
         except httpx.HTTPStatusError as exc:
