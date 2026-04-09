@@ -15,10 +15,10 @@ class NmapTool(BaseTool):
     default_timeout = 600
 
     SCAN_PROFILES = {
-        "quick":    ["-T4", "-F"],
-        "standard": ["-T4", "-sV", "-sC", "-O"],
-        "full":     ["-T4", "-sV", "-sC", "-O", "-p-"],
-        "stealth":  ["-T2", "-sS", "-sV"],
+        "quick":    ["-T4", "-F", "--open"],
+        "standard": ["-T4", "-sV", "-sC", "--open"],
+        "full":     ["-T4", "-sV", "-sC", "-p-", "--open"],
+        "stealth":  ["-T2", "-sS", "-sV", "--open"],
         "udp":      ["-sU", "--top-ports", "100"],
     }
 

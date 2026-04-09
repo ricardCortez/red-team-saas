@@ -97,9 +97,22 @@ export default function PhishingPage() {
       setProjects(items)
       if (items.length > 0) setCreateForm((f) => ({ ...f, project_id: items[0].id }))
     }).catch(() => {})
-    // Refresh API key from localStorage on mount (in case it was saved in another tab/session)
-    const savedKey = localStorage.getItem('gophish_api_key')
-    if (savedKey) setCreateForm((f) => ({ ...f, gophish_api_key: savedKey }))
+
+    // Load GoPhish config from backend (falls back to localStorage, then empty)
+    api.get('/phishing/campaigns/config').then((r) => {
+      const cfg = r.data
+      setCreateForm((f) => ({
+        ...f,
+        gophish_url: cfg.gophish_url || f.gophish_url,
+        gophish_api_key: cfg.gophish_api_key || localStorage.getItem('gophish_api_key') || f.gophish_api_key,
+        phishing_url: cfg.phishing_url || f.phishing_url,
+      }))
+      if (cfg.gophish_api_key) localStorage.setItem('gophish_api_key', cfg.gophish_api_key)
+    }).catch(() => {
+      // Fall back to localStorage only
+      const savedKey = localStorage.getItem('gophish_api_key')
+      if (savedKey) setCreateForm((f) => ({ ...f, gophish_api_key: savedKey }))
+    })
   }, [])
 
   const handleCreate = async (e: React.FormEvent) => {

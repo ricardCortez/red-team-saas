@@ -41,6 +41,9 @@ services:
       - DATABASE_URL=postgresql://redteam:password@postgres:5432/redteam_db
       - REDIS_URL=redis://redis:6379/0
       - DEBUG=True
+      - GOPHISH_URL=https://gophish:3333
+      - GOPHISH_API_KEY=8e1807cff895c10ea4a9f79189d1645071e033105bc3545435d21c2c79d01717
+      - GOPHISH_PHISHING_URL=http://localhost:8080
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
@@ -65,6 +68,9 @@ services:
     volumes:
       - ./backend:/app
       - ./logs:/app/logs
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     depends_on:
       postgres:
         condition: service_healthy

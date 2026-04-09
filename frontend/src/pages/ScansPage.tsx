@@ -44,12 +44,12 @@ export default function ScansPage() {
   const [iaPrompt, setIaPrompt] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<number | null>(null)
 
-  const load = () => {
-    setLoading(true)
+  const load = (silent = false) => {
+    if (!silent) setLoading(true)
     scanService.list()
       .then(setScans)
       .catch(() => setScans([]))
-      .finally(() => setLoading(false))
+      .finally(() => { if (!silent) setLoading(false) })
   }
 
   useEffect(() => {
@@ -61,6 +61,14 @@ export default function ScansPage() {
       if (items.length > 0) setForm((f) => ({ ...f, project_id: items[0].id }))
     }).catch(() => {})
   }, [])
+
+  // Auto-poll every 3s while any scan is running or pending
+  useEffect(() => {
+    const hasActive = scans.some((s) => s.status === 'running' || s.status === 'pending')
+    if (!hasActive) return
+    const interval = setInterval(() => load(true), 3000)
+    return () => clearInterval(interval)
+  }, [scans])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()

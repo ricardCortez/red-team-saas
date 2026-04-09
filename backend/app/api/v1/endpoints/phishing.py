@@ -30,6 +30,19 @@ router = APIRouter()
 _GOPHISH_DOCKER_URL = "https://gophish:3333"
 
 
+@router.get("/config")
+async def get_gophish_config(
+    current_user: User = Depends(get_current_user),
+):
+    """Return default GoPhish connection config so the UI can auto-fill the form."""
+    from app.core.config import settings
+    return {
+        "gophish_url": settings.GOPHISH_URL or _GOPHISH_DOCKER_URL,
+        "gophish_api_key": settings.GOPHISH_API_KEY or "",
+        "phishing_url": settings.GOPHISH_PHISHING_URL or "http://localhost:8080",
+    }
+
+
 def _normalize_gophish_url(url: str) -> str:
     """Replace localhost/127.0.0.1 GoPhish URLs with the Docker-internal service name.
 

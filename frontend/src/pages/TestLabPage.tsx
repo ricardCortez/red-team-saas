@@ -95,17 +95,27 @@ export default function TestLabPage() {
   useEffect(() => {
     fetchHealth();
 
-    api.get('/executions/?limit=10')
-      .then((r) => setExecutions(Array.isArray(r.data) ? r.data : r.data.items ?? []))
+    // Use scans list for recent activity (tasks have no dedicated list endpoint)
+    api.get('/scans/', { params: { limit: 10 } })
+      .then((r) => {
+        const items = Array.isArray(r.data) ? r.data : r.data.items ?? []
+        // Map scan shape to execution display shape
+        setExecutions(items.map((s: { id: number; name: string; status: string; created_at: string; tools?: string[] }) => ({
+          id: s.id,
+          tool_name: Array.isArray(s.tools) && s.tools.length > 0 ? s.tools.join(', ') : 'scan',
+          status: s.status,
+          created_at: s.created_at,
+        })))
+      })
       .catch(() => {});
 
-    api.get('/phishing/campaigns/?limit=5')
+    api.get('/phishing/campaigns', { params: { limit: 5 } })
       .then((r) => setCampaigns(Array.isArray(r.data) ? r.data : r.data.items ?? []))
       .catch(() => {});
 
     Promise.all([
-      api.get('/findings/').catch(() => ({ data: [] })),
-      api.get('/executions/').catch(() => ({ data: [] })),
+      api.get('/findings').catch(() => ({ data: [] })),
+      api.get('/scans/').catch(() => ({ data: [] })),
       api.get('/projects/').catch(() => ({ data: [] })),
       api.get('/targets/').catch(() => ({ data: [] })),
     ]).then(([findings, scans, projects, targets]) => {
@@ -132,9 +142,12 @@ export default function TestLabPage() {
       const projectsRes = await api.get('/projects/');
       const projectList = Array.isArray(projectsRes.data) ? projectsRes.data : projectsRes.data.items ?? [];
       if (projectList.length === 0) { alert('No projects available. Create a project first.'); return; }
-      const res = await api.post('/executions/', {
-        tool_name: 'nmap',
-        parameters: { target: scanTarget, profile: 'quick' },
+      const res = await api.post('/scans/', {
+        name: `Quick Scan - ${scanTarget}`,
+        scan_type: 'recon',
+        target: scanTarget,
+        tools: ['nmap'],
+        options: { profile: 'quick' },
         project_id: projectList[0].id,
       });
       setScanResult({ id: res.data.id });

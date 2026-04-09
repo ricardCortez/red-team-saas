@@ -27,15 +27,7 @@ FROM python:3.11-slim AS runtime
 
 WORKDIR /app
 
-# Runtime libs:
-#   libpq5                     → psycopg2-binary
-#   libffi8                    → cffi / cryptography (Debian Trixie)
-#   libcairo2                  → weasyprint (PDF rendering)
-#   libpango-1.0-0             → weasyprint (text layout)
-#   libpangocairo-1.0-0        → weasyprint (pango+cairo bridge)
-#   libgdk-pixbuf-2.0-0        → weasyprint (image support)
-#   shared-mime-info           → weasyprint (MIME types)
-#   curl                       → healthcheck
+# Runtime libs (required for the app)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libffi8 \
@@ -46,6 +38,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shared-mime-info \
     curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Security tool binaries available in Debian repos — each in its own RUN so one
+# missing package never aborts the rest. Failures are intentionally allowed (|| true).
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends nmap 2>/dev/null \
+    && rm -rf /var/lib/apt/lists/* \
+    || rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update -qq \
+    && apt-get install -y --no-install-recommends hydra john medusa whois sqlmap 2>/dev/null \
+    && rm -rf /var/lib/apt/lists/* \
+    || rm -rf /var/lib/apt/lists/*
+
+# Python-based CLI tools
+RUN pip install --no-cache-dir shodan 2>/dev/null || true
+
+# gobuster static binary
+RUN curl -fsSL "https://github.com/OJ/gobuster/releases/download/v3.6.0/gobuster_linux_amd64.tar.gz" \
+       -o /tmp/gobuster.tar.gz 2>/dev/null \
+    && tar xzf /tmp/gobuster.tar.gz -C /usr/local/bin gobuster 2>/dev/null \
+    && chmod +x /usr/local/bin/gobuster \
+    && rm -f /tmp/gobuster.tar.gz \
+    || rm -f /tmp/gobuster.tar.gz
 
 # Usuario no-root (uid 1000)
 RUN groupadd -g 1000 appuser \

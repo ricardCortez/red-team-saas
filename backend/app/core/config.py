@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: Optional[str] = "alerts@redteam.local"
 
+    # GoPhish defaults (pre-configure so the UI auto-fills)
+    GOPHISH_URL: str = "https://gophish:3333"
+    GOPHISH_API_KEY: str = ""
+    GOPHISH_PHISHING_URL: str = "http://localhost:8080"
+
     # Tool Executor
     TOOL_EXECUTION_TIMEOUT: int = 300   # 5 minutos por herramienta
     DOCKER_SANDBOX_ENABLED: bool = False
